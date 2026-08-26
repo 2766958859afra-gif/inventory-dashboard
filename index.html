@@ -1466,9 +1466,12 @@ function renderChange(){
     var ss=getSnapshots();
     var prev=ss.length>1?ss[0]:null;
     var now=ss.length>0?ss[ss.length-1]:null;
+    if(!prev&&D.prev_snapshot){prev=D.prev_snapshot;}
+    if(!now&&D&&D.ts){now={ts:D.ts};}
     var si="";
-    if(ss.length>=2)si="上次:"+prev.ts+" → 本次:"+now.ts;
-    else if(ss.length===1)si="首次上传:"+now.ts+"（暂无对比基线）";
+    if(prev&&now)si="上次:"+prev.ts+" → 本次:"+now.ts;
+    else if(prev)si="基线:"+prev.ts+" → 本次数据";
+    else if(now)si="首次上传:"+now.ts+"（暂无对比基线）";
     else si="暂无上传记录";
     document.getElementById("snapInfo").textContent=si;
     var sq=(document.getElementById("changeSearch")||{}).value||"";
