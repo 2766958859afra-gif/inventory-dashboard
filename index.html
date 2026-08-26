@@ -36,6 +36,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .chart-area{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
 .chart-area h2{font-size:13px;font-weight:600;margin-bottom:8px}.chart-wrap{position:relative;height:280px}
 .asin-search{border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;background:var(--card-bg);color:var(--text);width:200px}
+.ratio-filter-bar{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.ratio-filter-bar .filter-select,.ratio-filter-bar .asin-search{border-radius:6px;padding:6px 12px;font-size:12px;background:var(--card-bg);border:1px solid var(--border);color:var(--text);transition:border-color .15s}
+.ratio-filter-bar .filter-select:focus,.ratio-filter-bar .asin-search:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px rgba(37,99,235,.12)}
 .asin-table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--card-bg);max-height:60vh}
 .asin-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:11px}
 .asin-table th{position:sticky;top:0;background:var(--th-bg);z-index:3;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-weight:600;white-space:nowrap;font-size:12px;cursor:pointer;user-select:none}
@@ -135,20 +138,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="page-header"><h1>库销比分析</h1><span id="ts2" class="date">-</span>
 <div class="controls"><button class="btn-sm" onclick="exportRatioCSV()">📥 导出CSV</button><button id="clearFilterBtn" class="btn-sm clear-btn" onclick="clearRatioFilters()">✕ 清除筛选</button></div></div>
 <div class="page-content">
-<div class="kpi-row" id="ratioKpi"></div>
-<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-<input class="asin-search" id="rSearch" placeholder="搜索SKU/ASIN..." oninput="renderRatio()">
+<div class="ratio-filter-bar">
+<input class="asin-search" id="rSearch" placeholder="🔍 搜索SKU/ASIN..." oninput="renderRatio()">
 <select class="filter-select" id="fCatRatio" onchange="renderRatio()"><option value="">全部品类</option></select>
 <select class="filter-select" id="fOpRatio" onchange="renderRatio()"><option value="">全部运营</option></select>
 <select class="filter-select" id="fStatusR" onchange="renderRatio()"><option value="">全部状态</option></select>
 <select class="filter-select" id="fGradeR" onchange="renderRatio()"><option value="">全部等级</option></select>
-<span id="activeFilters" style="font-size:11px;color:var(--text-muted)">无</span>
+<span id="activeFilters" style="font-size:11px;color:var(--text-muted);margin-left:auto">无</span>
 </div>
+<div class="kpi-row" id="ratioKpi"></div>
 <div class="asin-table-wrap"><table class="asin-table"><thead id="ratioHead"></thead><tbody id="ratioBody"></tbody></table></div>
-<div class="chart-grid" style="margin-top:12px">
-<div class="chart-area"><h2>各运营·库销比</h2><div class="chart-wrap"><canvas id="c7"></canvas></div></div>
-<div class="chart-area"><h2>各品类·库销比</h2><div class="chart-wrap"><canvas id="c8"></canvas></div></div>
-</div></div></div>
+<div class="chart-area" style="margin-top:12px"><h2>各运营·库销比</h2><div class="chart-wrap" style="height:320px"><canvas id="c7"></canvas></div></div>
+</div></div>
 
 <!-- Panel 4: 运营洞察 -->
 <div class="page" id="pg-alerts">
@@ -812,6 +813,10 @@ function offshoreRatio(i) {
     var s = sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound)) / s : 0;
 }
+function finishRatio(i) {
+    var s = sn(i.sales_30d);
+    return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail)) / s : 0;
+}
 function fullRatio(i) {
     var s = sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail) + sn(i.purchase_inbound)) / s : 0;
@@ -824,6 +829,7 @@ function getValue(i, key) {
         sales_30d: sn(i.sales_30d),
         fbaRatio: fbaRatio(i), poRatio: poRatio(i),
         availRatio: (sn(i.fba_avail) + sn(i.po_avail)) / Math.max(sn(i.sales_30d), 0.01),
+        finishRatio: finishRatio(i), offshoreRatio: offshoreRatio(i),
         fullRatio: fullRatio(i)
     };
     return m[key] || 0;
@@ -835,6 +841,7 @@ var RATIO_COLS = [
     {k:'overseas_avail', l:'\u6D77\u5916\u4ED3'}, {k:'local_avail', l:'\u672C\u5730'},
     {k:'sales_30d', l:'30\u5929\u9500\u91CF'}, {k:'fbaRatio', l:'FBA\u5E93\u9500\u6BD4'},
     {k:'poRatio', l:'PO\u5E93\u9500\u6BD4'}, {k:'availRatio', l:'\u53EF\u7528\u5E93\u9500\u6BD4'},
+    {k:'finishRatio', l:'\u6210\u54C1\u5E93\u9500\u6BD4'}, {k:'offshoreRatio', l:'\u79BB\u5CB8\u5E93\u9500\u6BD4'},
     {k:'fullRatio', l:'\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4'}
 ];
 
@@ -924,6 +931,10 @@ function renderRatio() {
         });
     }
     
+    // Category filter
+    var catSel = document.getElementById('fCatRatio');
+    if (catSel && catSel.value) d = d.filter(function(i) { return (i.category||'') === catSel.value; });
+    
     // Operator filter
     var opSel = document.getElementById('fOpRatio');
     if (opSel && opSel.value) d = d.filter(function(i) { return i.operator === opSel.value; });
@@ -948,7 +959,8 @@ function renderRatio() {
         });
     }
     
-    // KPI filter
+    // KPI filter（baseD = 无 rf 影响的筛选结果，用于 KPI 统计）
+    var baseD = d;
     if (rf) {
         d = d.filter(function(i) {
             var fr = fullRatio(i);
@@ -961,9 +973,9 @@ function renderRatio() {
         });
     }
     
-    // Compute KPI counts from ALL items (unfiltered)
+    // Compute KPI counts from 筛选后数据（无 rf 影响）
     var dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
-    D.items.forEach(function(i) {
+    baseD.forEach(function(i) {
         var fr = fullRatio(i);
         if (sn(i.sales_30d) === 0) dead++;
         else if (fr < 3) risk++;
@@ -1011,9 +1023,9 @@ function renderRatio() {
     document.getElementById('activeFilters').textContent = activeFilters.length > 0 ? activeFilters.join(' | ') : '\u65E0';
     
     // Table
-    var cols = ['SKU','ASIN','\u54C1\u7C7B','\u8FD0\u8425','VC/SC','FBA\u53EF\u7528','FBA\u5728\u9014','PO\u5728\u5E93','PO\u5728\u9014','\u6D77\u5916\u4ED3','\u672C\u5730','SC\u9500\u91CF','VC\u9500\u91CF','30\u5929\u9500\u91CF','FBA\u5E93\u9500\u6BD4','PO\u5E93\u9500\u6BD4','\u53EF\u7528\u5E93\u9500\u6BD4','\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4','\u72B6\u6001','\u7B49\u7EA7'];
+    var cols = ['SKU','ASIN','\u54C1\u7C7B','\u8FD0\u8425','VC/SC','FBA\u53EF\u7528','FBA\u5728\u9014','PO\u5728\u5E93','PO\u5728\u9014','\u6D77\u5916\u4ED3','\u672C\u5730','SC\u9500\u91CF','VC\u9500\u91CF','30\u5929\u9500\u91CF','FBA\u5E93\u9500\u6BD4','PO\u5E93\u9500\u6BD4','\u53EF\u7528\u5E93\u9500\u6BD4','\u6210\u54C1\u5E93\u9500\u6BD4','\u79BB\u5CB8\u5E93\u9500\u6BD4','\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4','\u72B6\u6001','\u7B49\u7EA7'];
     var sums = {fa:0, fi:0, pa:0, pi:0, oa:0, lo:0, sc:0, vc:0, sl:0};
-    var ratioSums = {fr:0, pr:0, ar:0, fu:0};
+    var ratioSums = {fr:0, pr:0, ar:0, fi:0, of:0, fu:0};
     var cnt = d.length || 1;
     d.forEach(function(i) {
         sums.fa += sn(i.fba_avail); sums.fi += sn(i.fba_inbound);
@@ -1023,6 +1035,7 @@ function renderRatio() {
         sums.sl += sn(i.sales_30d);
         ratioSums.fr += fbaRatio(i); ratioSums.pr += poRatio(i);
         ratioSums.ar += (sn(i.fba_avail) + sn(i.po_avail)) / Math.max(sn(i.sales_30d), 0.01);
+        ratioSums.fi += finishRatio(i); ratioSums.of += offshoreRatio(i);
         ratioSums.fu += fullRatio(i);
     });
     
@@ -1032,7 +1045,8 @@ function renderRatio() {
         '<td class="num">' + fc(sums.oa) + '</td><td class="num">' + fc(sums.lo) + '</td>' +
         '<td class="num">' + fc(sums.sc) + '</td><td class="num">' + fc(sums.vc) + '</td><td class="num">' + fc(sums.sl) + '</td>' +
         '<td class="num">x\u0304' + f2(ratioSums.fr/cnt) + '</td><td class="num">x\u0304' + f2(ratioSums.pr/cnt) + '</td>' +
-        '<td class="num">x\u0304' + f2(ratioSums.ar/cnt) + '</td><td class="num">x\u0304' + f2(ratioSums.fu/cnt) + '</td>' +
+        '<td class="num">x\u0304' + f2(ratioSums.ar/cnt) + '</td><td class="num">x\u0304' + f2(ratioSums.fi/cnt) + '</td>' +
+        '<td class="num">x\u0304' + f2(ratioSums.of/cnt) + '</td><td class="num">x\u0304' + f2(ratioSums.fu/cnt) + '</td>' +
         '<td></td><td></td></tr>';
     
     var headerHtml = '<tr>';
@@ -1052,6 +1066,7 @@ function renderRatio() {
     d.slice(0, 500).forEach(function(i) {
         var fr = fullRatio(i), fbr = fbaRatio(i), pbr = poRatio(i);
         var avr = (sn(i.fba_avail) + sn(i.po_avail)) / Math.max(sn(i.sales_30d), 0.01);
+        var fir = finishRatio(i), ofr = offshoreRatio(i);
         body += '<tr><td>' + i.sku + '</td><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td>' +
             '<td>' + (i.category||'') + '</td><td>' + (i.operator||'') + '</td><td>' + (i.vc_sc||'SC') + '</td>' +
             '<td class="num">' + fc(i.fba_avail) + '</td><td class="num">' + fc(i.fba_inbound) + '</td>' +
@@ -1059,7 +1074,8 @@ function renderRatio() {
             '<td class="num">' + fc(i.overseas_avail) + '</td><td class="num">' + fc(i.local_avail) + '</td>' +
             '<td class="num">' + fc(i.fba_sales_30d||0) + '</td><td class="num">' + fc(i.po_sales_30d||0) + '</td><td class="num">' + fc(i.sales_30d) + '</td>' +
             '<td class="num">' + f2(fbr) + '</td><td class="num">' + f2(pbr) + '</td>' +
-            '<td class="num">' + f2(avr) + '</td><td class="num">' + f2(fr) + '</td>' +
+            '<td class="num">' + f2(avr) + '</td><td class="num">' + f2(fir) + '</td>' +
+            '<td class="num">' + f2(ofr) + '</td><td class="num">' + f2(fr) + '</td>' +
             '<td>' + (i.product_status||'') + '</td><td>' + (i.product_grade||'') + '</td></tr>';
     });
     document.getElementById('ratioBody').innerHTML = summaryRow + body;
@@ -1093,41 +1109,6 @@ function renderRatioCharts(d) {
                 {label: '\u79BB\u5CB8\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi)/a.sl:0; }), backgroundColor: '#06b6d4'},
                 {label: '\u6210\u54C1\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo)/a.sl:0; }), backgroundColor: '#8b5cf6'},
                 {label: '\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo+a.pu)/a.sl:0; }), backgroundColor: '#dc2626'}
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: {position: 'bottom'},
-                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toFixed(1); }}}
-            }
-        }
-    });
-    
-    // Category ratio chart
-    var byCat = {};
-    d.forEach(function(i) {
-        var c = i.category || '\u672A\u5206\u7C7B';
-        if (!byCat[c]) byCat[c] = {fa:0, fi:0, pa:0, pi:0, oa2:0, oi:0, lo:0, pu:0, sl:0};
-        byCat[c].fa += sn(i.fba_avail); byCat[c].fi += sn(i.fba_inbound);
-        byCat[c].pa += sn(i.po_avail); byCat[c].pi += sn(i.po_inbound);
-        byCat[c].oa2 += sn(i.overseas_avail); byCat[c].oi += sn(i.overseas_inbound);
-        byCat[c].lo += sn(i.local_avail); byCat[c].pu += sn(i.purchase_inbound);
-        byCat[c].sl += sn(i.sales_30d);
-    });
-    var cats = Object.keys(byCat).sort().filter(function(c){ var a=byCat[c]; if(a.sl<=0)return false; if((a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo+a.pu)/a.sl>200)return false; return true; });
-    
-    mkChart('c8', {
-        type: 'bar',
-        data: {
-            labels: cats,
-            datasets: [
-                {label: 'FBA\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.fa+a.fi)/a.sl:0; }), backgroundColor: '#2563eb'},
-                {label: 'PO\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.pa+a.pi)/a.sl:0; }), backgroundColor: '#f59e0b'},
-                {label: '\u53EF\u7528\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.fa+a.pa)/a.sl:0; }), backgroundColor: '#16a34a'},
-                {label: '\u79BB\u5CB8\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi)/a.sl:0; }), backgroundColor: '#06b6d4'},
-                {label: '\u6210\u54C1\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo)/a.sl:0; }), backgroundColor: '#8b5cf6'},
-                {label: '\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4', data: cats.map(function(c){ var a=byCat[c]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo+a.pu)/a.sl:0; }), backgroundColor: '#dc2626'}
             ]
         },
         options: {
