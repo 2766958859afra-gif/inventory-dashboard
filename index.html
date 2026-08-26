@@ -7,8 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#f5f6f8;--card-bg:#ffffff;--border:#e2e5ea;--text:#1a1d23;--text-muted:#6b7280;--accent:#2563eb;--accent-light:#eff6ff;--red:#b91c1c;--orange:#f59e0b;--green:#16a34a;--purple:#7c3aed;--shadow:0 1px 3px rgba(0,0,0,0.06);--radius:8px}
-[data-theme="dark"]{--bg:#0f1119;--card-bg:#1a1d2e;--border:#2a2d3e;--text:#c9d1d9;--text-muted:#8b949e;--accent:#3b82f6;--accent-light:#1e293b;--red:#f87171;--orange:#f59e0b;--green:#3fb950;--purple:#a78bfa}
+:root{--bg:#f5f6f8;--card-bg:#ffffff;--border:#e2e5ea;--text:#1a1d23;--text-muted:#6b7280;--accent:#2563eb;--accent-light:#eff6ff;--red:#b91c1c;--orange:#f59e0b;--green:#16a34a;--purple:#7c3aed;--shadow:0 1px 3px rgba(0,0,0,0.06);--radius:8px;--th-bg:#f8f9fb;--row-border:#f1f3f6}
+[data-theme="dark"]{--bg:#0f1119;--card-bg:#1a1d2e;--border:#2a2d3e;--text:#c9d1d9;--text-muted:#8b949e;--accent:#3b82f6;--accent-light:#1e293b;--red:#f87171;--orange:#f59e0b;--green:#3fb950;--purple:#a78bfa;--th-bg:#23273a;--row-border:#262b3d}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
 .sidebar{width:52px;min-width:52px;background:var(--card-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;overflow-y:auto;overflow-x:hidden;transition:width .2s ease}
@@ -38,9 +38,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .asin-search{border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;background:var(--card-bg);color:var(--text);width:200px}
 .asin-table-wrap{flex:1;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--card-bg);max-height:60vh}
 .asin-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:11px}
-.asin-table th{position:sticky;top:0;background:#f8f9fb;z-index:3;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-weight:600;white-space:nowrap;font-size:12px;cursor:pointer;user-select:none}
-.asin-table td{padding:6px 10px;border-bottom:1px solid #f1f3f6;white-space:nowrap}.asin-table td.num{text-align:right}
-.asin-table tbody tr:hover td{background:#fafbfc}
+.asin-table th{position:sticky;top:0;background:var(--th-bg);z-index:3;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-weight:600;white-space:nowrap;font-size:12px;cursor:pointer;user-select:none}
+.asin-table td{padding:6px 10px;border-bottom:1px solid var(--row-border);white-space:nowrap}.asin-table td.num{text-align:right}
+.asin-table tbody tr:hover td{background:var(--th-bg)}
 .summary-row td{font-weight:700;background:var(--accent-light)!important}
 #import-section{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
 .import-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
@@ -54,10 +54,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .pivot-grid{display:flex;flex-direction:column;gap:14px}.pivot-block{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
 .pivot-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:6px;max-height:400px}
 .pivot-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12px}
-.pivot-table th{position:sticky;top:0;background:#f8f9fb;z-index:2;padding:7px 10px;font-weight:600;color:var(--text);white-space:nowrap;font-size:12px;border-bottom:1px solid var(--border)}
-.pivot-table td{padding:6px 10px;border-bottom:1px solid #f1f3f6}.pivot-table .total-row td{font-weight:700;background:var(--accent-light)!important}
+.pivot-table th{position:sticky;top:0;background:var(--th-bg);z-index:2;padding:7px 10px;font-weight:600;color:var(--text);white-space:nowrap;font-size:12px;border-bottom:1px solid var(--border)}
+.pivot-table td{padding:6px 10px;border-bottom:1px solid var(--row-border)}.pivot-table .total-row td{font-weight:700;background:var(--accent-light)!important}
 .pivot-table tbody tr:hover td{filter:brightness(0.97)}
-.inv-pivot .total-row td{background:#eef1f4!important;border-top:2px solid var(--border)}
+.inv-pivot .total-row td{background:var(--th-bg)!important;border-top:2px solid var(--border)}
 .alert-section{margin-bottom:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .alert-section h3{padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
 .alert-section h3::before{content:"";width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -67,9 +67,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .alert-sev-3 h3::before{background:var(--orange)}
 .alert-sev-4 h3::before{background:var(--purple)}.alert-sev-1 h3{border-left:3px solid var(--red)}.alert-sev-2 h3{border-left:3px solid var(--green)}.alert-sev-3 h3{border-left:3px solid var(--orange)}.alert-sev-4 h3{border-left:3px solid var(--purple)}.alert-sev-0 h3{border-left:3px solid var(--text-muted)}
 .alert-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12px}
-.alert-table th{position:sticky;top:0;background:#f8f9fb;z-index:2;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600}
-.alert-table td{padding:6px 10px;border-bottom:1px solid #f1f3f6;white-space:nowrap}
-.alert-table tbody tr:hover td{background:#fafbfc}
+.alert-table th{position:sticky;top:0;background:var(--th-bg);z-index:2;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600}
+.alert-table td{padding:6px 10px;border-bottom:1px solid var(--row-border);white-space:nowrap}
+.alert-table tbody tr:hover td{background:var(--th-bg)}
 .btn-primary{padding:6px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer;font-weight:500}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .btn-sm{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-muted);font-size:11px;cursor:pointer}.btn-sm:hover{color:var(--text);border-color:var(--accent)}
 .clear-btn{opacity:.4;cursor:pointer}.clear-btn.active{opacity:1;color:var(--red)}
@@ -96,8 +96,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="page-header"><h1>进销存总览</h1><span id="clock" class="date" style="font-size:12px;color:var(--accent);font-weight:600"></span><span id="ts0" class="date">加载中...</span>
 <div class="controls"><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
 <div class="page-content">
-<div id="import-section"><div class="import-head" onclick="toggleImport()"><h2 style="margin:0">导入数据（总表）</h2><span id="importArrow" style="font-size:10px;color:var(--text-muted)">▲ 收起</span></div>
-<div id="import-body">
+<div id="import-section"><div class="import-head" onclick="toggleImport()"><h2 style="margin:0">导入数据（总表）</h2><span id="importArrow" style="font-size:10px;color:var(--text-muted)">▼ 展开</span></div>
+<div id="import-body" style="display:none">
 <div style="display:flex;gap:12px;align-items:center"><div class="drop-zone" onclick="document.getElementById('mainFile').click()" style="flex:1;min-width:280px;padding:20px"><div style="font-size:14px;font-weight:600">点击或拖拽上传总表</div><div style="font-size:11px;color:var(--text-muted)">自动识别6个子表</div></div><div><a class="btn-primary" href="库存看板数据-模板.xlsx" download style="text-decoration:none">下载模板</a></div></div>
 <input type="file" id="mainFile" accept=".xlsx,.xls" style="display:none" onchange="handleFullDataImport({target:this})"><div id="uploadProgress" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(9,105,218,0.06);border-radius:6px;font-size:12px;color:var(--accent)"></div>
 </div></div>
@@ -111,9 +111,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="chart-grid">
 <div class="chart-area"><h2>各品类·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumCat"></canvas></div></div>
 <div class="chart-area"><h2>库销比分布</h2><div class="chart-wrap" style="height:260px"><canvas id="ratioPie"></canvas></div></div>
-<div class="chart-area"><h2>各运营·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumOp"></canvas></div></div>
 </div></div>
-<div class="pivot-grid"><div class="pivot-block" id="catBlock"><p>等待数据...</p></div><div class="pivot-block" id="opBlock"><p>等待数据...</p></div></div>
+<div class="pivot-block" id="catBlock"><p>等待数据...</p></div>
+<div class="pivot-block" style="margin-top:12px"><div class="chart-area" style="margin-bottom:12px"><h2>各运营·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumOp"></canvas></div></div><div id="opBlock"><p>等待数据...</p></div></div>
 <div class="pivot-block" id="mappingBlock" style="margin-top:12px"></div></div></div>
 
 <!-- Panel 2: 库存结构 -->
@@ -317,10 +317,11 @@ var SUM_FIELD = {fba:'fba_avail', po:'po_avail', overseas:'overseas_avail', loca
 var SUM_LABEL = {fba:'FBA在库', po:'PO在库', overseas:'海外仓在库', local:'本地仓在库'};
 function setSumSrc(src, el){
     sumSrc = src;
-    ['fba','po','overseas','local'].forEach(function(k){
-        var c = document.getElementById('sumChip' + k.charAt(0).toUpperCase() + k.slice(1));
+    var chips = {fba:'sumChipFba', po:'sumChipPo', overseas:'sumChipOs', local:'sumChipLo'};
+    for (var k in chips) {
+        var c = document.getElementById(chips[k]);
         if (c) c.classList.toggle('active', k === src);
-    });
+    }
     renderSumCharts();
 }
 function renderSumCharts(){
