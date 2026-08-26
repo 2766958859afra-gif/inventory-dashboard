@@ -11,10 +11,14 @@
 [data-theme="dark"]{--bg:#0f1119;--card-bg:#1a1d2e;--border:#2a2d3e;--text:#c9d1d9;--text-muted:#8b949e;--accent:#3b82f6;--accent-light:#1e293b;--red:#f87171;--orange:#f59e0b;--green:#3fb950;--purple:#a78bfa}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
-.sidebar{width:200px;min-width:200px;background:var(--card-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;overflow-y:auto}
-.sidebar-nav{flex:1;padding:4px}.sidebar-footer{padding:8px;border-top:1px solid var(--border);margin-top:auto}
-.nav-item{padding:10px 12px;cursor:pointer;border-radius:6px;margin-bottom:2px;color:var(--text-muted);font-size:13px;display:flex;align-items:center;gap:8px;transition:.15s}
+.sidebar{width:52px;min-width:52px;background:var(--card-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;overflow-y:auto;overflow-x:hidden;transition:width .2s ease}
+.sidebar:hover,.sidebar.pinned{width:200px;min-width:200px}
+.sidebar-nav{flex:1;padding:4px;overflow:hidden;white-space:nowrap}
+.nav-item{padding:10px 12px;cursor:pointer;border-radius:6px;margin-bottom:2px;color:var(--text-muted);font-size:13px;display:flex;align-items:center;gap:8px;transition:.15s;white-space:nowrap;overflow:hidden}
 .nav-item:hover{background:var(--accent-light);color:var(--text)}.nav-item.active{background:var(--accent);color:#fff}
+.nav-ico{font-size:15px;flex-shrink:0;width:24px;text-align:center}
+.nav-txt{opacity:0;max-width:0;overflow:hidden;transition:max-width .2s ease,opacity .15s ease;display:inline-block}
+.sidebar:hover .nav-txt,.sidebar.pinned .nav-txt{opacity:1;max-width:140px}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .page-header{padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;background:var(--card-bg)}
 .page-header h1{font-size:15px;font-weight:600}.date{color:var(--text-muted);font-size:11px}
@@ -39,6 +43,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .asin-table tbody tr:hover td{background:#fafbfc}
 .summary-row td{font-weight:700;background:var(--accent-light)!important}
 #import-section{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.import-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
 .import-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
 .type-radio{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-muted);background:transparent}.type-radio.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:16px 24px;text-align:center;color:var(--text-muted);cursor:pointer;flex:1;min-width:160px}
@@ -51,13 +56,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .pivot-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12px}
 .pivot-table th{position:sticky;top:0;background:#f8f9fb;z-index:2;padding:7px 10px;font-weight:600;color:var(--text);white-space:nowrap;font-size:12px;border-bottom:1px solid var(--border)}
 .pivot-table td{padding:6px 10px;border-bottom:1px solid #f1f3f6}.pivot-table .total-row td{font-weight:700;background:var(--accent-light)!important}
-.pivot-table tbody tr:hover td{filter:brightness(0.96)}
-.inv-pivot th:nth-child(3),.inv-pivot td:nth-child(3),.inv-pivot th:nth-child(4),.inv-pivot td:nth-child(4){background:#eff6ff}
-.inv-pivot th:nth-child(5),.inv-pivot td:nth-child(5),.inv-pivot th:nth-child(6),.inv-pivot td:nth-child(6){background:#fff7ed}
-.inv-pivot th:nth-child(7),.inv-pivot td:nth-child(7),.inv-pivot th:nth-child(8),.inv-pivot td:nth-child(8){background:#f0fdf4}
-.inv-pivot th:nth-child(9),.inv-pivot td:nth-child(9){background:#ffffff}
-.inv-pivot th:nth-child(10),.inv-pivot td:nth-child(10){background:#ecfeff}
-.inv-pivot th:nth-child(11),.inv-pivot td:nth-child(11),.inv-pivot th:nth-child(12),.inv-pivot td:nth-child(12),.inv-pivot th:nth-child(13),.inv-pivot td:nth-child(13),.inv-pivot th:nth-child(14),.inv-pivot td:nth-child(14),.inv-pivot th:nth-child(15),.inv-pivot td:nth-child(15){background:#f8fafc}
+.pivot-table tbody tr:hover td{filter:brightness(0.97)}
 .inv-pivot .total-row td{background:#eef1f4!important;border-top:2px solid var(--border)}
 .alert-section{margin-bottom:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .alert-section h3{padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
@@ -71,11 +70,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 .alert-table th{position:sticky;top:0;background:#f8f9fb;z-index:2;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600}
 .alert-table td{padding:6px 10px;border-bottom:1px solid #f1f3f6;white-space:nowrap}
 .alert-table tbody tr:hover td{background:#fafbfc}
-.alert-table th:nth-child(6),.alert-table td:nth-child(6),.alert-table th:nth-child(7),.alert-table td:nth-child(7){background:#eff6ff}
-.alert-table th:nth-child(8),.alert-table td:nth-child(8),.alert-table th:nth-child(9),.alert-table td:nth-child(9){background:#fff7ed}
-.alert-table th:nth-child(10),.alert-table td:nth-child(10),.alert-table th:nth-child(11),.alert-table td:nth-child(11){background:#f0fdf4}
-.alert-table th:nth-child(12),.alert-table td:nth-child(12){background:#ecfeff}
-.alert-table th:nth-child(13),.alert-table td:nth-child(13),.alert-table th:nth-child(14),.alert-table td:nth-child(14),.alert-table th:nth-child(15),.alert-table td:nth-child(15){background:#f8fafc}
 .btn-primary{padding:6px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer;font-weight:500}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .btn-sm{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--text-muted);font-size:11px;cursor:pointer}.btn-sm:hover{color:var(--text);border-color:var(--accent)}
 .clear-btn{opacity:.4;cursor:pointer}.clear-btn.active{opacity:1;color:var(--red)}
@@ -87,24 +81,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <body>
 <div class="sidebar">
 <div class="sidebar-nav">
-<div class="nav-item active" onclick="goPage('pivot')">📋 进销存总览</div>
-<div class="nav-item" onclick="goPage('stock')">📊 库存结构</div>
-<div class="nav-item" onclick="goPage('ratio')">📈 库销比分析</div>
-<div class="nav-item" onclick="goPage('change')">📦 库存变化</div>
-<div class="nav-item" onclick="goPage('alerts')">⚠ 运营洞察</div>
+<div class="nav-item active" onclick="goPage('pivot')"><span class="nav-ico">📋</span><span class="nav-txt">进销存总览</span></div>
+<div class="nav-item" onclick="goPage('stock')"><span class="nav-ico">📊</span><span class="nav-txt">库存结构</span></div>
+<div class="nav-item" onclick="goPage('ratio')"><span class="nav-ico">📈</span><span class="nav-txt">库销比分析</span></div>
+<div class="nav-item" onclick="goPage('change')"><span class="nav-ico">📦</span><span class="nav-txt">库存变化</span></div>
+<div class="nav-item" onclick="goPage('alerts')"><span class="nav-ico">⚠</span><span class="nav-txt">运营洞察</span></div>
 </div>
-<div class="sidebar-footer"><button class="theme-btn" onclick="toggleTheme()">🌙 深色模式</button></div>
+<div class="sidebar-footer"><button class="theme-btn" onclick="togglePin()" id="pinBtn">📌 固定侧栏</button><button class="theme-btn" onclick="toggleTheme()">🌙 深色模式</button></div>
 </div>
 
 <div class="main">
 <!-- Panel 1: 进销存总览 -->
 <div class="page active" id="pg-pivot">
-<div class="page-header"><h1>进销存总览</h1><span id="ts0" class="date">加载中...</span>
+<div class="page-header"><h1>进销存总览</h1><span id="clock" class="date" style="font-size:12px;color:var(--accent);font-weight:600"></span><span id="ts0" class="date">加载中...</span>
 <div class="controls"><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
 <div class="page-content">
-<div id="import-section"><h2>导入数据（总表）</h2>
+<div id="import-section"><div class="import-head" onclick="toggleImport()"><h2 style="margin:0">导入数据（总表）</h2><span id="importArrow" style="font-size:10px;color:var(--text-muted)">▲ 收起</span></div>
+<div id="import-body">
 <div style="display:flex;gap:12px;align-items:center"><div class="drop-zone" onclick="document.getElementById('mainFile').click()" style="flex:1;min-width:280px;padding:20px"><div style="font-size:14px;font-weight:600">点击或拖拽上传总表</div><div style="font-size:11px;color:var(--text-muted)">自动识别6个子表</div></div><div><a class="btn-primary" href="库存看板数据-模板.xlsx" download style="text-decoration:none">下载模板</a></div></div>
-<input type="file" id="mainFile" accept=".xlsx,.xls" style="display:none" onchange="handleFullDataImport({target:this})"><div id="uploadProgress" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(9,105,218,0.06);border-radius:6px;font-size:12px;color:var(--accent)"></div></div>
+<input type="file" id="mainFile" accept=".xlsx,.xls" style="display:none" onchange="handleFullDataImport({target:this})"><div id="uploadProgress" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(9,105,218,0.06);border-radius:6px;font-size:12px;color:var(--accent)"></div>
+</div></div>
+<div class="pivot-block" id="sumBlock">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:12px;color:var(--text-muted)">数据源：</span>
+<span class="filter-chip active" id="sumChipFba" onclick="setSumSrc('fba',this)">FBA</span>
+<span class="filter-chip" id="sumChipPo" onclick="setSumSrc('po',this)">PO</span>
+<span class="filter-chip" id="sumChipOs" onclick="setSumSrc('overseas',this)">海外仓</span>
+<span class="filter-chip" id="sumChipLo" onclick="setSumSrc('local',this)">本地</span>
+<span style="margin-left:auto;font-size:11px;color:var(--text-muted)" id="sumDesc"></span></div>
+<div class="chart-grid">
+<div class="chart-area"><h2>各品类·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumCat"></canvas></div></div>
+<div class="chart-area"><h2>库销比分布</h2><div class="chart-wrap" style="height:260px"><canvas id="ratioPie"></canvas></div></div>
+<div class="chart-area"><h2>各运营·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumOp"></canvas></div></div>
+</div></div>
 <div class="pivot-grid"><div class="pivot-block" id="catBlock"><p>等待数据...</p></div><div class="pivot-block" id="opBlock"><p>等待数据...</p></div></div>
 <div class="pivot-block" id="mappingBlock" style="margin-top:12px"></div></div></div>
 
@@ -218,6 +226,37 @@ function toggleTheme() {
     var btn = document.querySelector('.theme-btn');
     if (btn) btn.innerHTML = (next === 'dark' ? '\u2600 浅色模式' : '\uD83C\uDF19 深色模式');
 }
+// ── Sidebar pin ──
+function togglePin() {
+    var sb = document.querySelector('.sidebar');
+    var pinned = sb.classList.toggle('pinned');
+    try { localStorage.setItem('inv_dash_pin', pinned ? '1' : '0'); } catch(e) {}
+    var b = document.getElementById('pinBtn');
+    if (b) b.innerHTML = pinned ? '📌 取消固定' : '📌 固定侧栏';
+}
+(function(){ try { if (localStorage.getItem('inv_dash_pin') === '1') { document.querySelector('.sidebar').classList.add('pinned'); document.getElementById('pinBtn').innerHTML = '📌 取消固定'; } } catch(e){} })();
+
+// ── Import collapse ──
+function toggleImport(){
+    var body=document.getElementById('import-body');
+    var arr=document.getElementById('importArrow');
+    if(!body)return;
+    var open=body.style.display!=='none';
+    body.style.display=open?'none':'';
+    if(arr)arr.textContent=open?'▼ 展开':'▲ 收起';
+}
+// ── Real-time clock ──
+function tick(){
+    var el=document.getElementById('clock');if(!el)return;
+    var n=new Date();
+    var timeStr=n.toLocaleString('zh-CN',{hour12:false});
+    var upd='';
+    if(D&&D.ts){
+        try{var dts=new Date(String(D.ts).replace(' ','T'));var isToday=dts.toDateString()===n.toDateString();upd=' | 数据更新于 '+D.ts+(isToday?' ✅':' (非今日)');}catch(e){upd=' | 数据更新于 '+D.ts;}
+    }
+    el.textContent=timeStr+upd;
+}
+setInterval(tick,1000);tick();
 
 // ── Page navigation ──
 function goPage(p) {
@@ -265,11 +304,78 @@ function refreshAll() {
     if (!D || !D.items) { showEmpty(); return; }
     updateTimestamps();
     destroyCharts();
-    if (pg === 'pivot') renderPivot();
+    if (pg === 'pivot') { renderPivot(); renderSumCharts(); }
     else if (pg === 'stock') renderStock();
     else if (pg === 'ratio') renderRatio();
     else if (pg === 'alerts') renderAlerts();
     else if (pg === 'change') renderChange();
+}
+
+// ── Summary charts (Panel 1) ──
+var sumSrc = 'fba';
+var SUM_FIELD = {fba:'fba_avail', po:'po_avail', overseas:'overseas_avail', local:'local_avail'};
+var SUM_LABEL = {fba:'FBA在库', po:'PO在库', overseas:'海外仓在库', local:'本地仓在库'};
+function setSumSrc(src, el){
+    sumSrc = src;
+    ['fba','po','overseas','local'].forEach(function(k){
+        var c = document.getElementById('sumChip' + k.charAt(0).toUpperCase() + k.slice(1));
+        if (c) c.classList.toggle('active', k === src);
+    });
+    renderSumCharts();
+}
+function renderSumCharts(){
+    if (!D || !D.items) return;
+    ['sumCat','ratioPie','sumOp'].forEach(function(k){ if(charts[k]){ charts[k].destroy(); delete charts[k]; } });
+    var f = SUM_FIELD[sumSrc] || 'fba_avail';
+    var byCat = {}, byOp = {};
+    D.items.forEach(function(i){
+        var c = i.category || '未分类', o = i.operator || '未分配';
+        if (!byCat[c]) byCat[c] = {v:0, s:0};
+        if (!byOp[o]) byOp[o] = {v:0, s:0};
+        byCat[c].v += sn(i[f]); byCat[c].s += sn(i.sales_30d);
+        byOp[o].v += sn(i[f]); byOp[o].s += sn(i.sales_30d);
+    });
+    var cats = Object.keys(byCat).sort(), ops = Object.keys(byOp).sort();
+    var d = document.getElementById('sumDesc');
+    if (d) d.textContent = SUM_LABEL[sumSrc] + ' + 近30天销量';
+    var colors = ['#2563eb','#f59e0b','#16a34a','#7c3aed','#ec4899','#06b6d4','#ef4444','#84cc16'];
+    function mkBar(id, labels, a, b){
+        var el = document.getElementById(id); if (!el) return;
+        charts[id] = new Chart(el, {
+            data: {labels: labels, datasets: [
+                {type:'bar', label: SUM_LABEL[sumSrc], data: a, backgroundColor: 'rgba(37,99,235,.75)', borderRadius: 4, yAxisID: 'y'},
+                {type:'line', label: '近30天销量', data: b, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.12)', borderWidth: 2, tension: .35, pointRadius: 3, yAxisID: 'y1'}
+            ]},
+            options: {responsive:true, maintainAspectRatio:false,
+                plugins:{legend:{labels:{font:{size:11}}}},
+                scales:{y:{beginAtZero:true, position:'left', ticks:{font:{size:10}}}, y1:{position:'right', grid:{drawOnChartArea:false}, ticks:{font:{size:10}}}}}
+        });
+    }
+    mkBar('sumCat', cats, cats.map(function(c){return Math.round(byCat[c].v)}), cats.map(function(c){return Math.round(byCat[c].s)}));
+    mkBar('sumOp', ops, ops.map(function(o){return Math.round(byOp[o].v)}), ops.map(function(o){return Math.round(byOp[o].s)}));
+    // Pie: 5 种库销比（整体值）
+    var T = {fba:0, fi:0, po:0, pi:0, os:0, lo:0, pu:0, s:0, fs:0, ps:0};
+    D.items.forEach(function(i){
+        T.fba += sn(i.fba_avail); T.fi += sn(i.fba_inbound); T.po += sn(i.po_avail); T.pi += sn(i.po_inbound);
+        T.os += sn(i.overseas_avail); T.lo += sn(i.local_avail); T.pu += sn(i.purchase_inbound);
+        T.s += sn(i.sales_30d); T.fs += sn(i.fba_sales_30d); T.ps += sn(i.po_sales_30d);
+    });
+    function ratio(n, m){ return m > 0 ? +(n / m).toFixed(2) : 0; }
+    var pies = [
+        {lb:'FBA库销比', v: ratio(T.fba, T.fs)},
+        {lb:'PO库销比', v: ratio(T.po, T.ps)},
+        {lb:'可用库销比', v: ratio(T.fba + T.po, T.s)},
+        {lb:'成品库销比', v: ratio(T.fba + T.po + T.os, T.s)},
+        {lb:'全链路库销比', v: ratio(T.fba + T.po + T.os + T.lo + T.pu, T.s)}
+    ];
+    var pe = document.getElementById('ratioPie'); if (!pe) return;
+    charts['ratioPie'] = new Chart(pe, {
+        type: 'doughnut',
+        data: {labels: pies.map(function(x){return x.lb}), datasets: [{data: pies.map(function(x){return x.v}), backgroundColor: colors.slice(0,5), borderWidth: 2, borderColor: '#fff'}]},
+        options: {responsive:true, maintainAspectRatio:false, cutout:'55%',
+            plugins:{legend:{position:'right', labels:{font:{size:10}, boxWidth:12}}, tooltip:{callbacks:{label:function(ctx){return ' '+ctx.label+': '+ctx.raw}}}}
+        }
+    });
 }
 
 // ── Apply SKU->operator mapping ──
