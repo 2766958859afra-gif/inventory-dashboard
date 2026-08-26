@@ -142,6 +142,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <input class="asin-search" id="rSearch" placeholder="🔍 搜索SKU/ASIN..." oninput="renderRatio()">
 <select class="filter-select" id="fCatRatio" onchange="renderRatio()"><option value="">全部品类</option></select>
 <select class="filter-select" id="fOpRatio" onchange="renderRatio()"><option value="">全部运营</option></select>
+<select class="filter-select" id="fScVc" onchange="renderRatio()"><option value="">全部渠道</option><option value="SC">仅SC</option><option value="VC">仅VC</option><option value="SC+VC">SC+VC双链路</option></select>
 <select class="filter-select" id="fStatusR" onchange="renderRatio()"><option value="">全部状态</option></select>
 <select class="filter-select" id="fGradeR" onchange="renderRatio()"><option value="">全部等级</option></select>
 <span id="activeFilters" style="font-size:11px;color:var(--text-muted);margin-left:auto">无</span>
@@ -149,6 +150,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="kpi-row" id="ratioKpi"></div>
 <div class="asin-table-wrap"><table class="asin-table"><thead id="ratioHead"></thead><tbody id="ratioBody"></tbody></table></div>
 <div class="chart-area" style="margin-top:12px"><h2>各运营·库销比</h2><div class="chart-wrap" style="height:320px"><canvas id="c7"></canvas></div></div>
+<div class="pivot-block" style="margin-top:12px" id="scvcBlock">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+<h2 style="font-size:14px;font-weight:600;margin:0">🛒 SC vs VC 库销比对比</h2>
+<select class="filter-select" id="fScVcOp" onchange="renderScVc()" style="margin-left:8px"><option value="">全部运营</option></select>
+<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 库销比差异大 → 建议转移购物车</span>
+</div>
+<div class="asin-table-wrap" style="max-height:480px"><table class="asin-table"><thead id="scvcHead"></thead><tbody id="scvcBody"></tbody></table></div>
+</div>
 </div></div>
 
 <!-- Panel 4: 运营洞察 -->
@@ -817,6 +826,14 @@ function finishRatio(i) {
     var s = sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail)) / s : 0;
 }
+function effRatio(i) {
+    var f = fbaRatio(i), p = poRatio(i);
+    var fs = sn(i.fba_sales_30d), ps = sn(i.po_sales_30d);
+    if (fs > 0 && ps > 0) return Math.min(f, p);
+    if (fs > 0) return f;
+    if (ps > 0) return p;
+    return 0;
+}
 function fullRatio(i) {
     var s = sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail) + sn(i.purchase_inbound)) / s : 0;
@@ -918,8 +935,23 @@ function clearNumFilter(ci) {
     renderRatio();
 }
 
+function populateRatioFilters(){
+    if (!D || !D.items) return;
+    function fill(id, key){
+        var sel = document.getElementById(id);
+        if (!sel || sel.options.length > 1) return;
+        var seen = {}; D.items.forEach(function(i){ var v = i[key]; if (v) seen[v] = true; });
+        Object.keys(seen).sort().forEach(function(v){ var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
+    }
+    fill('fCatRatio', 'category');
+    fill('fOpRatio', 'operator');
+    fill('fStatusR', 'product_status');
+    fill('fGradeR', 'product_grade');
+}
+
 function renderRatio() {
     if (!D || !D.items) return;
+    populateRatioFilters();
     var d = D.items.slice();
     
     // Search filter
@@ -934,6 +966,18 @@ function renderRatio() {
     // Category filter
     var catSel = document.getElementById('fCatRatio');
     if (catSel && catSel.value) d = d.filter(function(i) { return (i.category||'') === catSel.value; });
+    
+    // SC/VC 渠道筛选（FBA=SC链路，PO=VC链路）
+    var scSel = document.getElementById('fScVc');
+    if (scSel && scSel.value) {
+        var sv = scSel.value;
+        d = d.filter(function(i) {
+            var hasF = sn(i.fba_avail) > 0 || sn(i.fba_sales_30d) > 0;
+            var hasP = sn(i.po_avail) > 0 || sn(i.po_sales_30d) > 0;
+            var ch = hasF && hasP ? 'SC+VC' : hasF ? 'SC' : hasP ? 'VC' : 'NONE';
+            return ch === sv;
+        });
+    }
     
     // Operator filter
     var opSel = document.getElementById('fOpRatio');
@@ -963,12 +1007,12 @@ function renderRatio() {
     var baseD = d;
     if (rf) {
         d = d.filter(function(i) {
-            var fr = fullRatio(i);
+            var er = effRatio(i);
             if (rf === 'dead') return sn(i.sales_30d) === 0;
-            if (rf === 'risk') return sn(i.sales_30d) > 0 && fr < 3;
-            if (rf === 'healthy') return sn(i.sales_30d) > 0 && fr >= 3 && fr < 7;
-            if (rf === 'slow') return sn(i.sales_30d) > 0 && fr >= 7 && fr < 12;
-            if (rf === 'high') return sn(i.sales_30d) > 0 && fr >= 12;
+            if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
+            if (rf === 'healthy') return sn(i.sales_30d) > 0 && er >= 2 && er < 4;
+            if (rf === 'slow') return sn(i.sales_30d) > 0 && er >= 4 && er < 7;
+            if (rf === 'high') return sn(i.sales_30d) > 0 && er >= 7;
             return true;
         });
     }
@@ -976,20 +1020,20 @@ function renderRatio() {
     // Compute KPI counts from 筛选后数据（无 rf 影响）
     var dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
     baseD.forEach(function(i) {
-        var fr = fullRatio(i);
+        var er = effRatio(i);
         if (sn(i.sales_30d) === 0) dead++;
-        else if (fr < 3) risk++;
-        else if (fr < 7) healthy++;
-        else if (fr < 12) slow++;
+        else if (er < 2) risk++;
+        else if (er < 4) healthy++;
+        else if (er < 7) slow++;
         else high++;
     });
     
     document.getElementById('ratioKpi').innerHTML =
         '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">0\u52A8\u9500</div><div class="value" style="color:var(--text-muted)">' + dead + '</div></div>' +
-        '<div class="kpi-card kpi-clickable" id="kpi-risk" onclick="clickKPI(\'risk\')"><div class="label">\u98CE\u9669 &lt;3</div><div class="value" style="color:var(--red)">' + risk + '</div></div>' +
-        '<div class="kpi-card kpi-clickable" id="kpi-healthy" onclick="clickKPI(\'healthy\')"><div class="label">\u5065\u5EB7 3-7</div><div class="value" style="color:var(--green)">' + healthy + '</div></div>' +
-        '<div class="kpi-card kpi-clickable" id="kpi-slow" onclick="clickKPI(\'slow\')"><div class="label">\u504F\u6162 7-12</div><div class="value" style="color:var(--orange)">' + slow + '</div></div>' +
-        '<div class="kpi-card kpi-clickable" id="kpi-high" onclick="clickKPI(\'high\')"><div class="label">\u504F\u9AD8 &gt;12</div><div class="value" style="color:var(--purple)">' + high + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-risk" onclick="clickKPI(\'risk\')"><div class="label">\u98CE\u9669 &lt;2</div><div class="value" style="color:var(--red)">' + risk + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-healthy" onclick="clickKPI(\'healthy\')"><div class="label">\u6B63\u5E38 2-4</div><div class="value" style="color:var(--green)">' + healthy + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-slow" onclick="clickKPI(\'slow\')"><div class="label">\u504F\u6162 4-7</div><div class="value" style="color:var(--orange)">' + slow + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-high" onclick="clickKPI(\'high\')"><div class="label">\u504F\u9AD8 &gt;7</div><div class="value" style="color:var(--purple)">' + high + '</div></div>' +
         '<div class="kpi-card"><div class="label">\u7B5B\u9009\u7ED3\u679C</div><div class="value">' + d.length + '</div></div>';
     
     if (rf) {
@@ -1007,16 +1051,14 @@ function renderRatio() {
     }
     
     var activeFilters = [];
-    if (rf) {
-        var labels = {dead:'0\u52A8\u9500', risk:'\u98CE\u9669<3', healthy:'\u5065\u5EB73-7', slow:'\u504F\u61627-12', high:'\u504F\u9AD8>12'};
-        activeFilters.push(labels[rf]);
-    }
     for (var ci2 in nf) {
         if (!nf.hasOwnProperty(ci2)) continue;
         var n2 = nf[ci2];
         var cd2 = RATIO_COLS[parseInt(ci2)];
         if (cd2) activeFilters.push(cd2.l + ' ' + n2.op + ' ' + n2.val);
     }
+    if (catSel && catSel.value) activeFilters.push('\u54C1\u7C7B:' + catSel.value);
+    if (scSel && scSel.value) activeFilters.push('\u6E20\u9053:' + scSel.value);
     if (opSel && opSel.value) activeFilters.push('\u8FD0\u8425:' + opSel.value);
     if (rs) activeFilters.push('\u72B6\u6001:' + rs);
     if (rg) activeFilters.push('\u7B49\u7EA7:' + rg);
@@ -1082,6 +1124,46 @@ function renderRatio() {
     
     // Ratio charts
     renderRatioCharts(d);
+    renderScVc();
+}
+
+function populateScVcOp(){
+    var sel = document.getElementById('fScVcOp');
+    if (!sel || sel.options.length > 1 || !D || !D.items) return;
+    var seen = {}; D.items.forEach(function(i){ if (i.operator) seen[i.operator] = true; });
+    Object.keys(seen).sort().forEach(function(v){ var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
+}
+
+function renderScVc(){
+    if (!D || !D.items) return;
+    populateScVcOp();
+    var opSel = document.getElementById('fScVcOp');
+    var op = opSel ? opSel.value : '';
+    function hasF(i){ return sn(i.fba_sales_30d) > 0 || sn(i.fba_avail) > 0; }
+    function hasP(i){ return sn(i.po_sales_30d) > 0 || sn(i.po_avail) > 0; }
+    var rows = D.items.filter(function(i){
+        if (!hasF(i) || !hasP(i)) return false;
+        if (op && i.operator !== op) return false;
+        return true;
+    }).slice(0, 300);
+    function scRatio(i){ var s = sn(i.fba_sales_30d); return s > 0 ? sn(i.fba_avail)/s : 0; }
+    function vcRatio(i){ var s = sn(i.po_sales_30d); return s > 0 ? sn(i.po_avail)/s : 0; }
+    function osRatio(i){ var s = sn(i.fba_sales_30d) + sn(i.po_sales_30d); return s > 0 ? sn(i.overseas_avail)/s : 0; }
+    document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th>海外仓在途</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th></tr>';
+    var body = '';
+    rows.forEach(function(i){
+        var sr = scRatio(i), vr = vcRatio(i), orr = osRatio(i);
+        var diff = sr - vr, suggest;
+        if (diff > 2) suggest = '<span style="color:var(--red);font-weight:600">→转SC消化</span>';
+        else if (diff < -2) suggest = '<span style="color:var(--green);font-weight:600">→转VC消化</span>';
+        else suggest = '<span style="color:var(--text-muted)">均衡</span>';
+        body += '<tr><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td><td>' + (i.operator||'') + '</td>' +
+            '<td class="num">' + fc(i.fba_avail) + '</td><td class="num">' + fc(i.fba_inbound) + '</td><td class="num">' + fc(i.fba_sales_30d) + '</td>' +
+            '<td class="num">' + fc(i.po_avail) + '</td><td class="num">' + fc(i.po_inbound) + '</td><td class="num">' + fc(i.po_sales_30d) + '</td>' +
+            '<td class="num">' + fc(i.overseas_avail) + '</td><td class="num">' + fc(i.overseas_inbound) + '</td>' +
+            '<td class="num">' + f2(sr) + '</td><td class="num">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td></tr>';
+    });
+    document.getElementById('scvcBody').innerHTML = body;
 }
 
 function renderRatioCharts(d) {
@@ -1103,12 +1185,12 @@ function renderRatioCharts(d) {
         data: {
             labels: ops,
             datasets: [
-                {label: 'FBA\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi)/a.sl:0; }), backgroundColor: '#2563eb'},
-                {label: 'PO\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.pa+a.pi)/a.sl:0; }), backgroundColor: '#f59e0b'},
-                {label: '\u53EF\u7528\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.pa)/a.sl:0; }), backgroundColor: '#16a34a'},
-                {label: '\u79BB\u5CB8\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi)/a.sl:0; }), backgroundColor: '#06b6d4'},
-                {label: '\u6210\u54C1\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo)/a.sl:0; }), backgroundColor: '#8b5cf6'},
-                {label: '\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo+a.pu)/a.sl:0; }), backgroundColor: '#dc2626'}
+                {label: 'FBA\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi)/a.sl:0; }), backgroundColor: 'rgba(37,99,235,.75)', borderRadius: 4},
+                {label: 'PO\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.pa+a.pi)/a.sl:0; }), backgroundColor: 'rgba(245,158,11,.75)', borderRadius: 4},
+                {label: '\u53EF\u7528\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.pa)/a.sl:0; }), backgroundColor: 'rgba(22,163,74,.75)', borderRadius: 4},
+                {label: '\u79BB\u5CB8\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi)/a.sl:0; }), backgroundColor: 'rgba(6,182,212,.75)', borderRadius: 4},
+                {label: '\u6210\u54C1\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo)/a.sl:0; }), backgroundColor: 'rgba(139,92,246,.75)', borderRadius: 4},
+                {label: '\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4', data: ops.map(function(o){ var a=byOp[o]; return a.sl>0?(a.fa+a.fi+a.pa+a.pi+a.oa2+a.oi+a.lo+a.pu)/a.sl:0; }), backgroundColor: 'rgba(220,38,38,.75)', borderRadius: 4}
             ]
         },
         options: {
