@@ -1861,15 +1861,26 @@ function renderChange(){
             chAgg[ch.k].prev+=q;
         });
     });
-    mkChart("changeChart",{type:"bar",
-        data:{labels:['FBA','海外仓','PO','本地'],datasets:[
-            {label:wkPrev+"在途(参考)",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].prev}),backgroundColor:"rgba(148,163,184,.5)",borderRadius:4},
-            {label:wkLabel+"入库",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),
-             backgroundColor:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur>=0?"rgba(37,99,235,.8)":"rgba(220,38,38,.8)"}),borderRadius:4}
-        ]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.raw.toLocaleString()+' PCS'}}}},
-            scales:{y:{beginAtZero:false,grid:{color:"rgba(0,0,0,.06)"}}}});
-    // ASIN 明细（渠道入库 + 当前值，支持渠道/数量筛选）
+    mkChart("changeChart", {
+        type: 'bar',
+        data: {
+            labels: ['FBA', '海外仓', 'PO', '本地'],
+            datasets: [
+                {label: wkPrev + '在途(参考)', data: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].prev}), backgroundColor: 'rgba(148,163,184,.5)', borderRadius: 4},
+                {label: wkLabel + '入库', data: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),
+                 backgroundColor: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur >= 0 ? 'rgba(37,99,235,.8)' : 'rgba(220,38,38,.8)'}), borderRadius: 4}
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: {position: 'bottom'},
+                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toLocaleString() + ' PCS'; }}}
+            },
+            scales: {y: {beginAtZero: false, grid: {color: 'rgba(0,0,0,.06)'}}}
+        }
+    });
+// ASIN 明细（渠道入库 + 当前值，支持渠道/数量筛选）
     var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度入库明细（'+chRows.length+'条'+(faCh||aMinN!==null?' · 已按'+(faCh||'')+(aMinN!==null?'入库≥'+aMinN:'')+'筛选':'')+'）</div>';
     dh+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
     dh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>渠道</th>';
