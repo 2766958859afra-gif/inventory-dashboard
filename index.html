@@ -1779,7 +1779,8 @@ function renderChange(){
         var cur=items.reduce(function(s,i){return s+ch.f(i)},0);
         var tcur=items.reduce(function(s,i){return s+ch.t(i)},0);
         var arr=0;
-        if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
+        if(ch.k==='FBA'&&D.items[0]&&'arrive_7d' in D.items[0]){items.forEach(function(i){arr+=sn(i.arrive_7d)})}
+        else if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
         k+='<div class="kpi-card"><div class="label">'+ch.k+'入库</div><div class="value" style="font-size:17px;'+fcol(arr)+'">'+fsign(arr)+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
         k+='<div style="font-size:10px;color:var(--text-muted);border-top:1px dashed var(--border);margin-top:4px;padding-top:4px">在途 '+fc(tcur)+' · 在库 '+fc(cur)+'</div></div>';
     });
@@ -1792,9 +1793,10 @@ function renderChange(){
         var d=byOp[o];d.sk++;
         d.fa+=sn(i.fba_avail);d.fi+=sn(i.fba_inbound);d.pa+=sn(i.po_avail);d.pi+=sn(i.po_inbound);
         d.oa+=sn(i.overseas_avail);d.oi+=sn(i.overseas_inbound);d.lo+=sn(i.local_avail);d.pu+=sn(i.purchase_inbound);
+        d.arr.FBA+=sn(i.arrive_7d);
         var s=prevM[i.sku];
         if(s){
-            d.arr.FBA+=(s.fi-sn(i.fba_inbound));d.arr.PO+=(s.pi-sn(i.po_inbound));
+            d.arr.PO+=(s.pi-sn(i.po_inbound));
             d.arr['海外仓']+=(s.oi-sn(i.overseas_inbound));d.arr.本地+=(s.pu-sn(i.purchase_inbound));
         }
         var q=prevM[i.sku];
@@ -1805,7 +1807,7 @@ function renderChange(){
     items.forEach(function(i){
         CHS.forEach(function(ch){
             var s=prevM[i.sku];
-            var arr=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0;
+            var arr=ch.k==='FBA'?sn(i.arrive_7d):(s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0);
             if(faCh&&ch.k!==faCh)return;
             if(aMinN!==null&&arr<aMinN)return;
             chRows.push({i:i,ch:ch.k,arr:arr,cur:ch.f(i),t:ch.t(i)});
@@ -1855,17 +1857,18 @@ function renderChange(){
         var s=prevM[i.sku];
         CHS.forEach(function(ch){
             var q=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]):0;
-            chAgg[ch.k].cur+=q-ch.t(i);
+            chAgg[ch.k].cur+=ch.k==='FBA'?sn(i.arrive_7d):(q-ch.t(i));
             chAgg[ch.k].prev+=q;
         });
     });
     mkChart("changeChart",{type:"bar",
         data:{labels:['FBA','海外仓','PO','本地'],datasets:[
             {label:wkPrev+"在途(参考)",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].prev}),backgroundColor:"rgba(148,163,184,.5)",borderRadius:4},
-            {label:wkLabel+"入库(上周在途−本周在途)",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),backgroundColor:"rgba(37,99,235,.8)",borderRadius:4}
+            {label:wkLabel+"入库",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),
+             backgroundColor:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur>=0?"rgba(37,99,235,.8)":"rgba(220,38,38,.8)"}),borderRadius:4}
         ]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},
-            scales:{y:{beginAtZero:false,grid:{color:"rgba(0,0,0,.06)"}}}}});
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.raw.toLocaleString()+' PCS'}}}},
+            scales:{y:{beginAtZero:false,grid:{color:"rgba(0,0,0,.06)"}}}});
     // ASIN 明细（渠道入库 + 当前值，支持渠道/数量筛选）
     var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度入库明细（'+chRows.length+'条'+(faCh||aMinN!==null?' · 已按'+(faCh||'')+(aMinN!==null?'入库≥'+aMinN:'')+'筛选':'')+'）</div>';
     dh+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
@@ -1898,7 +1901,7 @@ function exportChangeCSV(){
     D.items.forEach(function(i){
         var s=prevM[i.sku];
         [['FBA','fi',sn(i.fba_inbound),sn(i.fba_avail)],['PO','pi',sn(i.po_inbound),sn(i.po_avail)],['海外仓','oi',sn(i.overseas_inbound),sn(i.overseas_avail)],['本地','pu',sn(i.purchase_inbound),sn(i.local_avail)]].forEach(function(c){
-            var arr=s?(s[c[1]]-c[2]):0;
+            var arr=c[0]==='FBA'?sn(i.arrive_7d):(s?(s[c[1]]-c[2]):0);
             lines.push([i.operator||'',i.asin||'',i.vc_sc||'',i.category||'',c[0],Math.round(arr),Math.round(c[3]),Math.round(c[2])].join(','));
         });
     });
