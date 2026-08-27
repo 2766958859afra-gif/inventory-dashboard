@@ -677,27 +677,27 @@ function exportMappingCSV(){
 var CH_LABEL = {all:'全部', SC:'SC', VC:'VC'};
 var CH_SEGS = {
     all: [
-        {k:'fa', lb:'FBA可用', c:'#3559c7', f:function(i){return sn(i.fba_avail)}},
-        {k:'fi', lb:'FBA在途', c:'#8899cc', f:function(i){return sn(i.fba_inbound)}},
-        {k:'pa', lb:'PO在库', c:'#e5cf83', f:function(i){return sn(i.po_avail)}},
-        {k:'pi', lb:'PO在途', c:'#c7484f', f:function(i){return sn(i.po_inbound)}},
-        {k:'oa', lb:'海外仓', c:'#2c855b', f:function(i){return sn(i.overseas_avail)}},
-        {k:'oi', lb:'海外在途', c:'#16857a', f:function(i){return sn(i.overseas_inbound)}},
-        {k:'lo', lb:'本地', c:'#6b7280', f:function(i){return sn(i.local_avail)}},
-        {k:'pu', lb:'采购在途', c:'#9d7bbf', f:function(i){return sn(i.purchase_inbound)}}
+        {k:'fa', lb:'FBA可用', c:'rgba(37,99,235,.85)', f:function(i){return sn(i.fba_avail)}},
+        {k:'fi', lb:'FBA在途', c:'rgba(37,99,235,.5)', f:function(i){return sn(i.fba_inbound)}},
+        {k:'pa', lb:'PO在库', c:'rgba(245,158,11,.85)', f:function(i){return sn(i.po_avail)}},
+        {k:'pi', lb:'PO在途', c:'rgba(245,158,11,.5)', f:function(i){return sn(i.po_inbound)}},
+        {k:'oa', lb:'海外仓', c:'rgba(22,163,74,.85)', f:function(i){return sn(i.overseas_avail)}},
+        {k:'oi', lb:'海外在途', c:'rgba(22,163,74,.5)', f:function(i){return sn(i.overseas_inbound)}},
+        {k:'lo', lb:'本地', c:'rgba(107,114,128,.75)', f:function(i){return sn(i.local_avail)}},
+        {k:'pu', lb:'采购在途', c:'rgba(139,92,246,.8)', f:function(i){return sn(i.purchase_inbound)}}
     ],
     SC: [
-        {k:'fa', lb:'FBA可用', c:'#3559c7', f:function(i){return sn(i.fba_avail)}},
-        {k:'pu', lb:'采购在途', c:'#9d7bbf', f:function(i){return sn(i.purchase_inbound)}},
-        {k:'lo', lb:'本地', c:'#6b7280', f:function(i){return sn(i.local_avail)}}
+        {k:'fa', lb:'FBA可用', c:'rgba(37,99,235,.85)', f:function(i){return sn(i.fba_avail)}},
+        {k:'pu', lb:'采购在途', c:'rgba(139,92,246,.8)', f:function(i){return sn(i.purchase_inbound)}},
+        {k:'lo', lb:'本地', c:'rgba(107,114,128,.75)', f:function(i){return sn(i.local_avail)}}
     ],
     VC: [
-        {k:'pa', lb:'PO在库', c:'#e5cf83', f:function(i){return sn(i.po_avail)}},
-        {k:'pi', lb:'PO在途', c:'#c7484f', f:function(i){return sn(i.po_inbound)}},
-        {k:'oi', lb:'海外在途', c:'#16857a', f:function(i){return sn(i.overseas_inbound)}},
-        {k:'oa', lb:'海外仓', c:'#2c855b', f:function(i){return sn(i.overseas_avail)}},
-        {k:'pu', lb:'采购在途', c:'#9d7bbf', f:function(i){return sn(i.purchase_inbound)}},
-        {k:'lo', lb:'本地', c:'#6b7280', f:function(i){return sn(i.local_avail)}}
+        {k:'pa', lb:'PO在库', c:'rgba(245,158,11,.85)', f:function(i){return sn(i.po_avail)}},
+        {k:'pi', lb:'PO在途', c:'rgba(245,158,11,.5)', f:function(i){return sn(i.po_inbound)}},
+        {k:'oi', lb:'海外在途', c:'rgba(22,163,74,.5)', f:function(i){return sn(i.overseas_inbound)}},
+        {k:'oa', lb:'海外仓', c:'rgba(22,163,74,.85)', f:function(i){return sn(i.overseas_avail)}},
+        {k:'pu', lb:'采购在途', c:'rgba(139,92,246,.8)', f:function(i){return sn(i.purchase_inbound)}},
+        {k:'lo', lb:'本地', c:'rgba(107,114,128,.75)', f:function(i){return sn(i.local_avail)}}
     ]
 };
 function setStockFilter(f, el) {
@@ -779,7 +779,7 @@ function renderStock() {
     d.forEach(function(i) { scSales += sn(i.fba_sales_30d); vcSales += sn(i.po_sales_30d); });
     mkChart('c2', {
         type: 'doughnut',
-        data: { labels: ['SC', 'VC'], datasets: [{data: [scSales, vcSales], backgroundColor: ['#3559c7', '#c7484f']}] },
+        data: { labels: ['SC', 'VC'], datasets: [{data: [scSales, vcSales], backgroundColor: ['rgba(37,99,235,.8)', 'rgba(220,38,38,.8)']}] },
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
@@ -808,40 +808,56 @@ function renderStock() {
         }
     });
     
-    // Chart 4: 各运营·当前口径库销比
-    var opWithSales = ops.filter(function(o){ var d=byOp[o]; return d.sl>0 && d.ts/d.sl<=200; });
+    // Chart 4: 各运营·库销比（6维度）
+    var opAgg={};
+    d.forEach(function(i){var o=i.operator||'(未分配)';if(!opAgg[o])opAgg[o]={fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,sl:0};var a=opAgg[o];a.fa+=sn(i.fba_avail);a.fi+=sn(i.fba_inbound);a.pa+=sn(i.po_avail);a.pi+=sn(i.po_inbound);a.oa+=sn(i.overseas_avail);a.oi+=sn(i.overseas_inbound);a.lo+=sn(i.local_avail);a.pu+=sn(i.purchase_inbound);a.sl+=sn(i.sales_30d)});
+    var ops6=Object.keys(opAgg).sort().filter(function(o){var a=opAgg[o];return a.sl>0&&(a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo+a.pu)/a.sl<=200});
+    var R6=function(o,fn){return ops6.map(function(x){var a=opAgg[x];return a.sl>0?fn(a)/a.sl:0})};
     mkChart('c4', {
         type: 'bar',
         data: {
-            labels: opWithSales,
-            datasets: [{label: CH_LABEL[sf]+'库销比', data: opWithSales.map(function(o){var d=byOp[o]; return d.sl>0?+(d.ts/d.sl).toFixed(2):0;}), backgroundColor: '#3559c7', borderRadius:4}]
+            labels: ops6,
+            datasets: [
+                {label: 'FBA库销比', data: R6(0,function(a){return a.fa+a.fi}), backgroundColor: 'rgba(37,99,235,.75)', borderRadius: 4},
+                {label: 'PO库销比', data: R6(0,function(a){return a.pa+a.pi}), backgroundColor: 'rgba(245,158,11,.75)', borderRadius: 4},
+                {label: '可用库销比', data: R6(0,function(a){return a.fa+a.pa}), backgroundColor: 'rgba(22,163,74,.75)', borderRadius: 4},
+                {label: '离岸库销比', data: R6(0,function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi}), backgroundColor: 'rgba(6,182,212,.75)', borderRadius: 4},
+                {label: '成品库销比', data: R6(0,function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo}), backgroundColor: 'rgba(139,92,246,.75)', borderRadius: 4},
+                {label: '全链路库销比', data: R6(0,function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo+a.pu}), backgroundColor: 'rgba(220,38,38,.75)', borderRadius: 4}
+            ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false, scales:{y:{beginAtZero:true}},
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: {position: 'bottom'},
-                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toFixed(2); }}}
+                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toFixed(1); }}}
             }
         }
     });
     
-    // Chart 5: 各品类·当前口径库销比
-    var catWithSales = cats.filter(function(c){
-        var s = 0; d.forEach(function(i){ if(i.category === c) s += sn(i.sales_30d); }); return s > 0;
-    });
+    // Chart 5: 各品类·库销比（6维度）
+    var catAgg={};
+    d.forEach(function(i){var c=i.category||'(未分类)';if(!catAgg[c])catAgg[c]={fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,sl:0};var a=catAgg[c];a.fa+=sn(i.fba_avail);a.fi+=sn(i.fba_inbound);a.pa+=sn(i.po_avail);a.pi+=sn(i.po_inbound);a.oa+=sn(i.overseas_avail);a.oi+=sn(i.overseas_inbound);a.lo+=sn(i.local_avail);a.pu+=sn(i.purchase_inbound);a.sl+=sn(i.sales_30d)});
+    var cats6=Object.keys(catAgg).sort().filter(function(c){var a=catAgg[c];return a.sl>0&&(a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo+a.pu)/a.sl<=200});
+    var R6C=function(fn){return cats6.map(function(x){var a=catAgg[x];return a.sl>0?fn(a)/a.sl:0})};
     mkChart('c5', {
         type: 'bar',
         data: {
-            labels: catWithSales,
-            datasets: [{label: CH_LABEL[sf]+'库销比', data: catWithSales.map(function(c){
-                var sk=0,sl=0; d.forEach(function(i){ if(i.category===c){ segs.forEach(function(s2){sk+=s2.f(i);}); sl+=sn(i.sales_30d); } }); return sl>0?+(sk/sl).toFixed(2):0;
-            }), backgroundColor: '#2c855b', borderRadius:4}]
+            labels: cats6,
+            datasets: [
+                {label: 'FBA库销比', data: R6C(function(a){return a.fa+a.fi}), backgroundColor: 'rgba(37,99,235,.75)', borderRadius: 4},
+                {label: 'PO库销比', data: R6C(function(a){return a.pa+a.pi}), backgroundColor: 'rgba(245,158,11,.75)', borderRadius: 4},
+                {label: '可用库销比', data: R6C(function(a){return a.fa+a.pa}), backgroundColor: 'rgba(22,163,74,.75)', borderRadius: 4},
+                {label: '离岸库销比', data: R6C(function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi}), backgroundColor: 'rgba(6,182,212,.75)', borderRadius: 4},
+                {label: '成品库销比', data: R6C(function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo}), backgroundColor: 'rgba(139,92,246,.75)', borderRadius: 4},
+                {label: '全链路库销比', data: R6C(function(a){return a.fa+a.fi+a.pa+a.pi+a.oa+a.oi+a.lo+a.pu}), backgroundColor: 'rgba(220,38,38,.75)', borderRadius: 4}
+            ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false, scales:{y:{beginAtZero:true}},
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: {position: 'bottom'},
-                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toFixed(2); }}}
+                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toFixed(1); }}}
             }
         }
     });
@@ -862,7 +878,7 @@ function renderStock() {
                 return {
                     label: s,
                     data: ops.map(function(o){ return statusByOp[o] ? (statusByOp[o][s] || 0) : 0; }),
-                    backgroundColor: ['#2c855b','#e5cf83','#c7484f','#8899cc'][i]
+                    backgroundColor: ['rgba(22,163,74,.8)','rgba(245,158,11,.8)','rgba(220,38,38,.8)','rgba(37,99,235,.55)'][i]
                 };
             })
         },
