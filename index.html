@@ -2039,7 +2039,7 @@ function handleNewDataImport(e){
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r];
                         var opCell=String(rw[0]||'').trim();   // 运营列（模板分块）
-                        if(opCell&&['向海','张紫莹','戴杨芳','尹芳','雷冰洁','陈景','方静敏','苏雨晴','PHILTOP'].indexOf(opCell)>=0){curOp=opCell;continue}
+                        if(opCell&&['向海','张紫莹','戴杨芳','尹芳','雷冰洁','雷冰洁1','陈景','方静敏','苏雨晴','PHILTOP'].indexOf(opCell)>=0){curOp=opCell;continue}
                         var a=String(rw[cA]||'').trim();
                         if(!a||a==='合计')continue;
                         if(!D.opMonthly[a])D.opMonthly[a]={};
