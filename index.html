@@ -1911,20 +1911,18 @@ function handleNewDataImport(e){
             if(prog)prog.textContent='解析中...';
             var names=wb.SheetNames,log=[],map={};
             function s4(kw){for(var i=0;i<names.length;i++)if(names[i].indexOf(kw)>=0)return names[i];return null}
-            function findHdr(rs,keys){for(var i=0;i<Math.min(50,rs.length);i++){var hi=rs[i].map(function(x){return String(x||'').trim()});for(var k=0;k<keys.length;k++){if(findColIdx(hi,[keys[k]])>=0)return i}}return -1}
+            function findHdr(rs,keys){for(var i=0;i<Math.min(60,rs.length);i++){var hi=rs[i].map(function(x){return String(x||'').trim()});var hit=0;for(var k=0;k<keys.length;k++){if(findColIdx(hi,[keys[k]])>=0)hit++}if(hit>=keys.length)return i}return -1}
             function colOf(rs,hr,keys){return findColIdx(rs[hr].map(function(x){return String(x||'').trim()}),keys)}
-            function rowsOf(rs,hr,skipKeys){var out=[],t=hr+1;for(var i=t;i<rs.length;i++){var sk=String(rs[i][0]||'').trim();if(!sk||skipKeys.indexOf(sk)>=0)continue;out.push(rs[i])}return out}
             function put(sk,field,val){if(val===''||val==null||val===undefined)return;if(!map[sk])map[sk]={};map[sk][field]=val}
             var SKIP=['合计','总计','小计','总合计'];
-            // ── 1. 库存明细报表（BI仓库明细，按SKU聚合） ──
+            // ── 1. 库存明细报表（BI明细，按SKU聚合：可售/头程在途/采购在途） ──
             var sInv=s4('库存明细');
             if(sInv){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sInv],{header:1,defval:''});
                 var hr=findHdr(rs,['SKU','可售库存','头程在途']);
                 if(hr>=0){
-                    var cS=colOf(rs,hr,['SKU']),cAv=colOf(rs,hr,['可售库存']),
-                        cHt=colOf(rs,hr,['头程在途']),cPu=colOf(rs,hr,['采购在途（剩余订单）','采购在途']);
-                    var ct=0,agg={};
+                    var cS=colOf(rs,hr,['SKU']),cAv=colOf(rs,hr,['可售库存']),cHt=colOf(rs,hr,['头程在途']),cPu=colOf(rs,hr,['采购在途（剩余订单）','采购在途']);
+                    var agg={},ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
@@ -1935,36 +1933,35 @@ function handleNewDataImport(e){
                         ct++;
                     }
                     Object.keys(agg).forEach(function(sk){put(sk,'fba_avail',agg[sk].av);put(sk,'fba_inbound',agg[sk].ht);put(sk,'purchase_inbound',agg[sk].pu)});
-                    log.push(sInv+' ✓'+ct);
-                } else log.push(sInv+' ✗表头未识别');
+                    log.push('库存明细 ✓'+ct);
+                } else log.push('库存明细 ✗表头未识别');
             }
-            // ── 2. 滤清备货逻辑表（备货明细1219：映射信息） ──
-            var sBe=s4('备货明细')||s4('滤清备货');
-            if(sBe){
-                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sBe],{header:1,defval:''});
-                var hr=findHdr(rs,['SKU','ASIN','最新运营']);
+            // ── 2. 库龄报表（按SKU聚合库龄） ──
+            var sAge=s4('库龄');
+            if(sAge){
+                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sAge],{header:1,defval:''});
+                var hr=findHdr(rs,['商品编码','总库存','0-30天库存']);
                 if(hr>=0){
-                    var cS=colOf(rs,hr,['SKU']),cA=colOf(rs,hr,['ASIN']),cCat=colOf(rs,hr,['品类']),
-                        cBr=colOf(rs,hr,['品牌']),cVc=colOf(rs,hr,['产品编码']),cSt=colOf(rs,hr,['商品状态']),
-                        cG=colOf(rs,hr,['产品等级']),cOp=colOf(rs,hr,['最新运营']);
-                    var ct=0;
+                    var cS=colOf(rs,hr,['商品编码']),cT=colOf(rs,hr,['总库存']),
+                        cA1=colOf(rs,hr,['0-30天库存']),cA2=colOf(rs,hr,['31-60天库存']),cA3=colOf(rs,hr,['61-90天库存']),
+                        cA4=colOf(rs,hr,['91-180天库存']),cA5=colOf(rs,hr,['181-270天库存']),cA6=colOf(rs,hr,['271-365天库存']),cA7=colOf(rs,hr,['365天以上库存']),
+                        cS30=colOf(rs,hr,['30天出库销量']);
+                    var agg={},ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        if(cA>=0)put(sk,'asin',String(rw[cA]||'').trim());
-                        if(cCat>=0)put(sk,'category',String(rw[cCat]||'').trim());
-                        if(cBr>=0)put(sk,'brand',String(rw[cBr]||'').trim());
-                        if(cVc>=0)put(sk,'vc_sc',String(rw[cVc]||'').trim());
-                        if(cSt>=0)put(sk,'product_status',String(rw[cSt]||'').trim());
-                        if(cG>=0)put(sk,'product_grade',String(rw[cG]||'').trim());
-                        if(cOp>=0)put(sk,'operator',String(rw[cOp]||'').trim());
+                        if(!agg[sk])agg[sk]={t:0,a1:0,a2:0,a3:0,a4:0,a5:0,a6:0,a7:0,s30:0};
+                        var g=agg[sk];
+                        g.t+=Number(rw[cT])||0;g.a1+=Number(rw[cA1])||0;g.a2+=Number(rw[cA2])||0;g.a3+=Number(rw[cA3])||0;
+                        g.a4+=Number(rw[cA4])||0;g.a5+=Number(rw[cA5])||0;g.a6+=Number(rw[cA6])||0;g.a7+=Number(rw[cA7])||0;g.s30+=Number(rw[cS30])||0;
                         ct++;
                     }
-                    log.push(sBe+' ✓'+ct);
-                } else log.push(sBe+' ✗表头未识别');
+                    Object.keys(agg).forEach(function(sk){var g=agg[sk];put(sk,'age_total',g.t);put(sk,'age_0_30',g.a1);put(sk,'age_31_60',g.a2);put(sk,'age_61_90',g.a3);put(sk,'age_91_180',g.a4);put(sk,'age_181_270',g.a5);put(sk,'age_271_365',g.a6);put(sk,'age_365p',g.a7);put(sk,'age_sales_30d',g.s30)});
+                    log.push('库龄 ✓'+ct);
+                } else log.push('库龄 ✗表头未识别');
             }
-            // ── 3. VC库存（PO/VC渠道数据） ──
-            var sVc=s4('VC库存');
+            // ── 3. VC库存销售汇总（PO/VC数据） ──
+            var sVc=s4('VC库存销售汇总')||s4('VC库存');
             if(sVc){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sVc],{header:1,defval:''});
                 var hr=findHdr(rs,['商品编码','PO在库','VC近30天销量']);
@@ -1989,33 +1986,29 @@ function handleNewDataImport(e){
                         if(cAge>=0)put(sk,'po_age90',Number(rw[cAge])||0);
                         ct++;
                     }
-                    log.push(sVc+' ✓'+ct);
-                } else log.push(sVc+' ✗表头未识别');
+                    log.push('VC库存销售汇总 ✓'+ct);
+                } else log.push('VC库存销售汇总 ✗表头未识别');
             }
-            // ── 4. 进销存报表（最终映射+进销存报表：库存+销量+运营） ──
+            // ── 4. 进销存报表（最新，最后覆盖：库存+销量+入库） ──
             var sIn=s4('进销存');
             if(sIn){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sIn],{header:1,defval:''});
                 var hr=findHdr(rs,['商品编码','FBA可用库存','30天销量']);
                 if(hr>=0){
-                    var cS=colOf(rs,hr,['商品编码']),cOp=colOf(rs,hr,['运营']),cG=colOf(rs,hr,['商品等级']),
+                    var cS=colOf(rs,hr,['商品编码']),cG=colOf(rs,hr,['商品等级']),
                         cFa=colOf(rs,hr,['FBA可用库存']),cFi=colOf(rs,hr,['FBA在途库存']),
                         cOa=colOf(rs,hr,['海外仓可用库存']),cOi=colOf(rs,hr,['海外仓在途库存']),
                         cLo=colOf(rs,hr,['本地仓可用库存']),cPu=colOf(rs,hr,['采购在途库存']),
                         cSl=colOf(rs,hr,['30天销量']),cSf=colOf(rs,hr,['FBA30天销量']),
-                        cCat=colOf(rs,hr,['品类']),cBr=colOf(rs,hr,['品牌']),
-                        cPa=colOf(rs,hr,['PO在库']),cPi=colOf(rs,hr,['PO在途']),
-                        cSt=colOf(rs,hr,['商品状态']),cVc=colOf(rs,hr,['产品编码']);
+                        cCat=colOf(rs,hr,['业务分类']),cBr=colOf(rs,hr,['品牌']),
+                        cA7=colOf(rs,hr,['近7天入库数量']),cA14=colOf(rs,hr,['近14天入库数量']),cA30=colOf(rs,hr,['近30天入库数量']);
                     var ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        put(sk,'operator',String(rw[cOp]||'').trim());
-                        put(sk,'product_grade',String(rw[cG]||'').trim());
-                        put(sk,'product_status',String(rw[cSt]||'').trim());
-                        put(sk,'vc_sc',String(rw[cVc]||'').trim());
-                        put(sk,'category',String(rw[cCat]||'').trim());
-                        put(sk,'brand',String(rw[cBr]||'').trim());
+                        if(cG>=0)put(sk,'product_grade',String(rw[cG]||'').trim());
+                        if(cCat>=0)put(sk,'category',String(rw[cCat]||'').trim());
+                        if(cBr>=0)put(sk,'brand',String(rw[cBr]||'').trim());
                         if(cFa>=0)put(sk,'fba_avail',Number(rw[cFa])||0);
                         if(cFi>=0)put(sk,'fba_inbound',Number(rw[cFi])||0);
                         if(cOa>=0)put(sk,'overseas_avail',Number(rw[cOa])||0);
@@ -2024,43 +2017,55 @@ function handleNewDataImport(e){
                         if(cPu>=0)put(sk,'purchase_inbound',Number(rw[cPu])||0);
                         if(cSl>=0)put(sk,'sales_30d',Number(rw[cSl])||0);
                         if(cSf>=0)put(sk,'fba_sales_30d',Number(rw[cSf])||0);
-                        if(cPa>=0)put(sk,'po_avail',Number(rw[cPa])||0);
-                        if(cPi>=0)put(sk,'po_inbound',Number(rw[cPi])||0);
+                        if(cA7>=0)put(sk,'arrive_7d',Number(rw[cA7])||0);
+                        if(cA14>=0)put(sk,'arrive_14d',Number(rw[cA14])||0);
+                        if(cA30>=0)put(sk,'arrive_30d',Number(rw[cA30])||0);
                         ct++;
                     }
-                    log.push(sIn+' ✓'+ct);
-                } else log.push(sIn+' ✗表头未识别');
+                    log.push('进销存报表 ✓'+ct);
+                } else log.push('进销存报表 ✗表头未识别');
             }
-            // ── 5. 运营-月重点数据总览（运营月度数据，存 D.opMonthly 备用） ──
-            var sOp=s4('月重点');
+            // ── 5. 运营综合分析明细（运营分块 + 月度数据存 D.opMonthly） ──
+            var sOp=s4('运营综合分析');
             if(sOp){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sOp],{header:1,defval:''});
                 var hr=findHdr(rs,['平台销售编码','出库销量']);
                 if(hr>=0){
-                    var cA=colOf(rs,hr,['平台销售编码']),cQ=colOf(rs,hr,['出库销量']),
-                        cAmt=colOf(rs,hr,['出库销售额']),cGM=colOf(rs,hr,['毛利率']),
-                        cFlow=colOf(rs,hr,['流量']),cCvr=colOf(rs,hr,['转化率']);
-                    D.opMonthly=D.opMonthly||{};var ct=0;
+                    var cA=colOf(rs,hr,['平台销售编码']),cSku=colOf(rs,hr,['sku']),
+                        cQ=colOf(rs,hr,['出库销量']),cAmt=colOf(rs,hr,['出库销售额']),
+                        cGM=colOf(rs,hr,['毛利率']),cFlow=colOf(rs,hr,['流量']),cCvr=colOf(rs,hr,['转化率']),
+                        cAdv=colOf(rs,hr,['广告花费']);
+                    D.opMonthly=D.opMonthly||{};var curOp='',ct=0;
                     for(var r=hr+1;r<rs.length;r++){
-                        var rw=rs[r],a=String(rw[cA]||'').trim();
+                        var rw=rs[r];
+                        var opCell=String(rw[0]||'').trim();   // 运营列（模板分块）
+                        if(opCell&&['向海','张紫莹','戴杨芳','尹芳','雷冰洁','陈景','方静敏','苏雨晴','PHILTOP'].indexOf(opCell)>=0){curOp=opCell;continue}
+                        var a=String(rw[cA]||'').trim();
                         if(!a||a==='合计')continue;
-                        D.opMonthly[a]={q:Number(rw[cQ])||0,amt:Number(rw[cAmt])||0,gm:Number(rw[cGM])||0,flow:Number(rw[cFlow])||0,cvr:Number(rw[cCvr])||0};
+                        if(!D.opMonthly[a])D.opMonthly[a]={};
+                        var o=D.opMonthly[a];
+                        if(curOp)o.operator=curOp;
+                        if(cQ>=0)o.q=Number(rw[cQ])||0;
+                        if(cAmt>=0)o.amt=Number(rw[cAmt])||0;
+                        if(cGM>=0)o.gm=Number(rw[cGM])||0;
+                        if(cFlow>=0)o.flow=Number(rw[cFlow])||0;
+                        if(cCvr>=0)o.cvr=Number(rw[cCvr])||0;
+                        if(cAdv>=0)o.adv=Number(rw[cAdv])||0;
+                        if(cSku>=0&&rw[cSku])o.sku=String(rw[cSku]).trim();
                         ct++;
                     }
-                    log.push(sOp+' ✓'+ct);
-                } else log.push(sOp+' ✗表头未识别');
+                    log.push('运营综合分析 ✓'+ct);
+                } else log.push('运营综合分析 ✗表头未识别');
             }
-            // ── 合并到 D.items（只覆盖填了的字段） ──
+            // ── 合并到 D.items ──
             var cnt=0;
             D.items.forEach(function(it){
                 var m=map[it.sku];
                 if(!m)return;
                 cnt++;
-                ['fba_avail','fba_inbound','overseas_avail','overseas_inbound','local_avail','purchase_inbound','po_avail','po_inbound','sales_30d','fba_sales_30d','po_sales_30d','po_age90'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
-                ['operator','category','brand','product_grade','product_status','vc_sc'].forEach(function(k){if(m[k])it[k]=m[k]});
-                if(m.asin)it.asin=m.asin;
+                ['fba_avail','fba_inbound','overseas_avail','overseas_inbound','local_avail','purchase_inbound','po_avail','po_inbound','sales_30d','fba_sales_30d','po_sales_30d','po_age90','arrive_7d','arrive_14d','arrive_30d','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
+                ['category','brand','product_grade'].forEach(function(k){if(m[k])it[k]=m[k]});
             });
-            // 保存 + 刷新
             D._imported=true;sd();
             renderPivot();renderStock();renderRatio();renderChange();renderAlerts();
             if(typeof renderScVc==='function')renderScVc();
@@ -2077,6 +2082,7 @@ function handleNewDataImport(e){
     };
     reader.readAsArrayBuffer(file);
 }
+
 handleFullDataImport=handleNewDataImport;
 
 // ── Panel 1 export ──
