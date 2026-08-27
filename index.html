@@ -234,11 +234,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <span id="snapInfo" style="font-size:11px;color:var(--text-muted);margin-right:12px">暂无上传</span>
 <input class="asin-search" id="changeSearch" placeholder="搜索SKU/ASIN..." oninput="renderChange()" style="width:160px">
 <select class="filter-select" id="fCatChange" onchange="renderChange()"><option value="">全部品类</option></select>
-<select class="filter-select" id="fOpChange" onchange="renderChange()"><option value="">全部运营</option></select><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button>
+<select class="filter-select" id="fOpChange" onchange="renderChange()"><option value="">全部运营</option></select><button class="btn-sm" onclick="exportChangeCSV()">📥 导出CSV</button><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button>
 </div></div>
 <div class="page-content">
 <div class="kpi-row" id="changeKpi"></div>
-<div class="chart-area" style="margin-bottom:12px"><h2>📊 周变化对比（W33 vs W34 · 随运营/品类筛选联动）</h2><div class="chart-wrap" style="height:280px"><canvas id="changeChart"></canvas></div></div>
+<div class="channel-bar" style="margin-bottom:12px">
+<span class="channel-desc" style="max-width:none">📦 入库数量 = 上周在途 − 本周在途（从在途变成在库的新入库；负数=退回/调拨）。按渠道+数量筛选：</span>
+<select class="filter-select" id="fChArrive" onchange="renderChange()"><option value="">全部渠道</option><option>FBA</option><option>PO</option><option>海外仓</option><option>本地</option></select>
+<input id="arriveMin" type="number" placeholder="入库≥" style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card-bg);color:var(--text)">
+<button class="btn-sm" onclick="applyArriveFilter()">筛选</button>
+<button class="btn-sm" onclick="clearArriveFilter()">✕</button>
+</div>
+<div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道入库对比（本周 vs 上周 · 随运营/品类筛选联动）</h2><div class="chart-wrap" style="height:280px"><canvas id="changeChart"></canvas></div></div>
 <div id="changeSummary"></div>
 <div style="margin-top:10px"><div id="changeDetail"></div></div>
 </div></div>
@@ -1717,141 +1724,170 @@ function renderChange(){
     if(!D||!D.items)return;
     var ws=D.week_snapshots||{};
     var wks=Object.keys(ws).sort();
-    var prev=wks.length>1?ws[wks[wks.length-2]]:null;   // 上周（W33）
-    var now=wks.length?ws[wks[wks.length-1]]:null;      // 本周（W34）
+    var prev=wks.length>1?ws[wks[wks.length-2]]:null;
+    var now=wks.length?ws[wks[wks.length-1]]:null;
     if(!prev&&D.prev_snapshot){prev=D.prev_snapshot;}
     if(!now&&D&&D.ts){now={ts:D.ts};}
     var wkLabel=wks.length?wks[wks.length-1]:(now&&now.ts?now.ts.substring(0,7):'本周');
     var wkPrev=wks.length>1?wks[wks.length-2]:(prev&&prev.ts?prev.ts.substring(0,7):'上周');
-    var si=wks.length>1?wkPrev+" → "+wkLabel+" 周对比" : (now?"基线:"+(now.monday||now.ts||'')+"（暂无对比，下周一起自动积累）":"暂无周数据");
-    document.getElementById("snapInfo").textContent=si;
+    document.getElementById("snapInfo").textContent=wks.length>1?wkPrev+" → "+wkLabel+" 周对比" : (now?"基线:"+(now.monday||now.ts||'')+"（暂无对比，下周一起自动积累）":"暂无周数据");
     var sq=(document.getElementById("changeSearch")||{}).value||"";
     var fq=(document.getElementById("fOpChange")||{}).value||"";
     var cq=(document.getElementById("fCatChange")||{}).value||"";
-    // SKU级索引
+    var faCh=(document.getElementById("fChArrive")||{}).value||"";
+    var aMin=(document.getElementById("arriveMin")||{}).value;
+    var aMinN=aMin===''?null:parseFloat(aMin);
     function idx(snap){var m={};if(!snap||!snap.items)return m;snap.items.forEach(function(a){if(a&&a[0])m[a[0]]={fa:a[1],fi:a[2],pa:a[3],pi:a[4],oa:a[5],oi:a[6],lo:a[7],pu:a[8]}});return m}
     var nowM=idx(now), prevM=idx(prev);
-    // 筛选后的当前 items
     var items=D.items.filter(function(i){
         if(sq&&(i.sku||'').toUpperCase().indexOf(sq.toUpperCase())<0&&(i.asin||'').toUpperCase().indexOf(sq.toUpperCase())<0)return false;
         if(fq&&i.operator!==fq)return false;
         if(cq&&i.category!==cq)return false;
         return true;
     });
-    // 当前值
-    var c={fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,sk:items.length};
-    items.forEach(function(i){c.fa+=sn(i.fba_avail);c.fi+=sn(i.fba_inbound);c.pa+=sn(i.po_avail);c.pi+=sn(i.po_inbound);c.oa+=sn(i.overseas_avail);c.oi+=sn(i.overseas_inbound);c.lo+=sn(i.local_avail);c.pu+=sn(i.purchase_inbound)});
-    // 上周值（对应 SKU）
-    var p={fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0};
-    if(prev){items.forEach(function(i){var s=prevM[i.sku];if(s){p.fa+=s.fa;p.fi+=s.fi;p.pa+=s.pa;p.pi+=s.pi;p.oa+=s.oa;p.oi+=s.oi;p.lo+=s.lo;p.pu+=s.pu}})}
+    // 渠道定义：入库=上周在途-本周在途；在途/在库=当前值
+    var CHS=[{k:'FBA',f:function(i){return sn(i.fba_avail)},t:function(i){return sn(i.fba_inbound)},
+              pf:function(i){var s=prevM[i.sku];return s?s.fa:null},pt:function(i){var s=prevM[i.sku];return s?s.fi:null}},
+             {k:'PO',f:function(i){return sn(i.po_avail)},t:function(i){return sn(i.po_inbound)},
+              pf:function(i){var s=prevM[i.sku];return s?s.pa:null},pt:function(i){var s=prevM[i.sku];return s?s.pi:null}},
+             {k:'海外仓',f:function(i){return sn(i.overseas_avail)},t:function(i){return sn(i.overseas_inbound)},
+              pf:function(i){var s=prevM[i.sku];return s?s.oa:null},pt:function(i){var s=prevM[i.sku];return s?s.oi:null}},
+             {k:'本地',f:function(i){return sn(i.local_avail)},t:function(i){return sn(i.purchase_inbound)},
+              pf:function(i){var s=prevM[i.sku];return s?s.lo:null},pt:function(i){var s=prevM[i.sku];return s?s.pu:null}}];
     var hasPrev=prev&&Object.keys(prevM).length>0;
-    var df=function(a,b){var d=Math.round(a-b);return(d>=0?"+":"")+d.toLocaleString("en-US")};
-    var dcol=function(a,b){return a>=b?"color:var(--green)":"color:var(--red)"};
-    // ── KPI 8卡：到货(±)=在库变化，在途(±)=在途变化 ──
-    var kpiDefs=[
-        {lb:"FBA到货", v:c.fa, pv:p.fa, nt:"FBA在库 "+fc(c.fa)},
-        {lb:"FBA在途", v:c.fi, pv:p.fi, nt:"在途 "+fc(c.fi)},
-        {lb:"PO到货", v:c.pa, pv:p.pa, nt:"PO在库 "+fc(c.pa)},
-        {lb:"PO在途", v:c.pi, pv:p.pi, nt:"在途 "+fc(c.pi)},
-        {lb:"海外仓到货", v:c.oa, pv:p.oa, nt:"在库 "+fc(c.oa)},
-        {lb:"海外仓在途", v:c.oi, pv:p.oi, nt:"在途 "+fc(c.oi)},
-        {lb:"本地到货", v:c.lo, pv:p.lo, nt:"在库 "+fc(c.lo)},
-        {lb:"采购在途", v:c.pu, pv:p.pu, nt:"采购未交 "+fc(c.pu)}
-    ];
+    var fsign=function(v){return(v>=0?"+":"")+Math.round(v).toLocaleString("en-US")};
+    var fcol=function(v){return v>=0?"color:var(--green)":"color:var(--red)"};
+    // KPI 8卡：入库(正负) + 当前在途
     var k="";
-    kpiDefs.forEach(function(x){
-        var chg=hasPrev?df(x.v,x.pv):"0";
-        var cc=hasPrev?dcol(x.v,x.pv):"color:var(--text-muted)";
-        k+='<div class="kpi-card"><div class="label">'+x.lb+' <span style="font-size:9px;color:var(--text-muted)">±</span></div><div class="value" style="font-size:17px">'+chg+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
-        k+='<div style="font-size:10px;color:var(--text-muted);border-top:1px dashed var(--border);margin-top:4px;padding-top:4px">'+x.nt+'</div></div>';
+    CHS.forEach(function(ch){
+        var cur=items.reduce(function(s,i){return s+ch.f(i)},0);
+        var tcur=items.reduce(function(s,i){return s+ch.t(i)},0);
+        var arr=0;
+        if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
+        k+='<div class="kpi-card"><div class="label">'+ch.k+'入库</div><div class="value" style="font-size:17px;'+fcol(arr)+'">'+fsign(arr)+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
+        k+='<div style="font-size:10px;color:var(--text-muted);border-top:1px dashed var(--border);margin-top:4px;padding-top:4px">在途 '+fc(tcur)+' · 在库 '+fc(cur)+'</div></div>';
     });
     document.getElementById("changeKpi").innerHTML=k;
-    // ── 周对比表（运营维度·横向=仓库·纵向=周） ──
-    // 按运营聚合当前+上周
+    // 周表：运营筛选 + SKU数 + 纵向=上周入库/本周入库/本周在途/本周在库，横向=4渠道
     var byOp={};
-    items.forEach(function(i){var o=i.operator||"未分配";if(!byOp[o])byOp[o]={sk:0,fa:0,fi:0,oa:0,oi:0,lo:0,pu:0,pfa:0,pfi:0,poa:0,poi:0,plo:0,ppu:0};var d=byOp[o];d.sk++;d.fa+=sn(i.fba_avail);d.fi+=sn(i.fba_inbound);d.oa+=sn(i.overseas_avail);d.oi+=sn(i.overseas_inbound);d.lo+=sn(i.local_avail);d.pu+=sn(i.purchase_inbound);var s=prevM[i.sku];if(s){d.pfa+=s.fa;d.pfi+=s.fi;d.poa+=s.oa;d.poi+=s.oi;d.plo+=s.lo;d.ppu+=s.pu}});
+    items.forEach(function(i){
+        var o=i.operator||"未分配";
+        if(!byOp[o])byOp[o]={sk:0,fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,arr:{FBA:0,PO:0,'海外仓':0,本地:0},parr:{FBA:0,PO:0,'海外仓':0,本地:0}};
+        var d=byOp[o];d.sk++;
+        d.fa+=sn(i.fba_avail);d.fi+=sn(i.fba_inbound);d.pa+=sn(i.po_avail);d.pi+=sn(i.po_inbound);
+        d.oa+=sn(i.overseas_avail);d.oi+=sn(i.overseas_inbound);d.lo+=sn(i.local_avail);d.pu+=sn(i.purchase_inbound);
+        var s=prevM[i.sku];
+        if(s){
+            d.arr.FBA+=(s.fi-sn(i.fba_inbound));d.arr.PO+=(s.pi-sn(i.po_inbound));
+            d.arr['海外仓']+=(s.oi-sn(i.overseas_inbound));d.arr.本地+=(s.pu-sn(i.purchase_inbound));
+        }
+        var q=prevM[i.sku];
+        if(q){d.parr.FBA+=q.fi;d.parr.PO+=q.pi;d.parr['海外仓']+=q.oi;d.parr.本地+=q.pu;}
+    });
+    // 渠道入库筛选（ASIN维度）
+    var chRows=[];
+    items.forEach(function(i){
+        CHS.forEach(function(ch){
+            var s=prevM[i.sku];
+            var arr=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0;
+            if(faCh&&ch.k!==faCh)return;
+            if(aMinN!==null&&arr<aMinN)return;
+            chRows.push({i:i,ch:ch.k,arr:arr,cur:ch.f(i),t:ch.t(i)});
+        });
+    });
+    // 周表渲染
+    var HEAD=['FBA','海外仓','PO','本地'];
+    var sh='<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">📋 运营周对比表 <span style="color:var(--text-muted);font-weight:400;font-size:11px">（入库 = 上周在途−本周在途 · '+wkPrev+'→'+wkLabel+'）</span></div>';
+    sh+='<div class="pivot-table-wrap" style="max-height:400px"><table class="pivot-table"><thead><tr><th>运营</th><th>SKU数</th>';
+    HEAD.forEach(function(hh){sh+='<th>'+hh+'入库</th>'});
+    HEAD.forEach(function(hh){sh+='<th style="border-left:2px solid var(--accent)">'+hh+'在途</th>'});
+    HEAD.forEach(function(hh){sh+='<th style="border-left:2px solid var(--accent)">'+hh+'在库</th>'});
+    sh+='</tr></thead><tbody>';
     var ops=Object.keys(byOp).sort();
-    var HEAD=['FBA在库','FBA在途','海外仓在库','海外仓在途','本地仓','采购未交'];
-    var KEY=['fa','fi','oa','oi','lo','pu'], PKEY=['pfa','pfi','poa','poi','plo','ppu'];
-    var bg1='background:var(--th-bg)', bg2='background:var(--card-bg)';
-    var sh='<div style="margin-top:10px"><div class="pivot-table-wrap" style="max-height:400px"><table class="pivot-table"><thead><tr><th style="'+bg1+'">运营</th><th style="'+bg1+'">SKU数</th>';
-    HEAD.forEach(function(hh){sh+='<th style="'+bg1+'">'+hh+'</th>'});
-    sh+='<th style="'+bg1+';border-left:2px solid var(--accent)">'+wkPrev+'变化(±)</th></tr></thead><tbody>';
     ops.forEach(function(o){
         var d=byOp[o];
         sh+='<tr><td style="font-weight:600">'+o+'</td><td class="num">'+d.sk+'</td>';
-        KEY.forEach(function(kk,i){
-            var nowV=d[kk], prevV=d[PKEY[i]];
-            // 周两行：W33（上周）+ W34（本周）叠加在一个单元格？不——按用户规格：横向仓库、纵向周
-            // 改为每个运营下显示 W33行/W34行/变化行 太宽；采用单元格内两行显示
-            sh+='<td class="num" style="'+bg2+';border-bottom:none;font-size:11px">';
-            sh+='<div style="color:var(--text-muted)">W'+wkPrev.slice(-2)+': '+fc(prevV)+'</div>';
-            sh+='<div style="font-weight:600">W'+wkLabel.slice(-2)+': '+fc(nowV)+'</div>';
-            sh+='</td>';
+        HEAD.forEach(function(hh){
+            var v=d.arr[hh];
+            sh+='<td class="num" style="'+fcol(v)+'">'+fsign(v)+'</td>';
         });
-        // 变化列
-        sh+='<td class="num" style="border-left:2px solid var(--accent)">';
-        KEY.forEach(function(kk,i){
-            var chg=hasPrev?df(d[kk],d[PKEY[i]]):"0";
-            var cc=hasPrev?dcol(d[kk],d[PKEY[i]]):"color:var(--text-muted)";
-            sh+='<div style="'+cc+';white-space:nowrap">'+HEAD[i]+' '+chg+'</div>';
+        HEAD.forEach(function(hh){
+            var v=hh==='FBA'?d.fi:hh==='海外仓'?d.oi:hh==='PO'?d.pi:d.pu;
+            sh+='<td class="num" style="border-left:2px solid var(--accent);color:var(--text-muted)">'+fc(v)+'</td>';
         });
-        sh+='</td></tr>';
+        HEAD.forEach(function(hh){
+            var v=hh==='FBA'?d.fa:hh==='海外仓'?d.oa:hh==='PO'?d.pa:d.lo;
+            sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>';
+        });
+        sh+='</tr>';
     });
-    // 总计行（筛选后合计）
+    // 合计行
     if(ops.length>1){
-        sh+='<tr class="total-row"><td>合计</td><td class="num">'+items.length+'</td>';
-        KEY.forEach(function(kk,i){
-            sh+='<td class="num" style="font-size:11px"><div style="color:var(--text-muted)">W'+wkPrev.slice(-2)+': '+fc(p[kk])+'</div><div style="font-weight:600">W'+wkLabel.slice(-2)+': '+fc(c[kk])+'</div></td>';
-        });
-        sh+='<td class="num">';KEY.forEach(function(kk,i){var chg=hasPrev?df(c[kk],p[kk]):"0";var cc=hasPrev?dcol(c[kk],p[kk]):"color:var(--text-muted)";sh+='<div style="'+cc+'">'+HEAD[i]+' '+chg+'</div>'});sh+='</td></tr>';
+        var t={sk:items.length,arr:{FBA:0,PO:0,'海外仓':0,本地:0},fi:0,oi:0,pi:0,pu:0,fa:0,oa:0,pa:0,lo:0};
+        ops.forEach(function(o){var d=byOp[o];['FBA','PO','海外仓','本地'].forEach(function(hh){t.arr[hh]+=d.arr[hh]});t.fi+=d.fi;t.oi+=d.oi;t.pi+=d.pi;t.pu+=d.pu;t.fa+=d.fa;t.oa+=d.oa;t.pa+=d.pa;t.lo+=d.lo});
+        sh+='<tr class="total-row"><td>合计</td><td class="num">'+t.sk+'</td>';
+        HEAD.forEach(function(hh){sh+='<td class="num" style="'+fcol(t.arr[hh])+'">'+fsign(t.arr[hh])+'</td>'});
+        HEAD.forEach(function(hh){var v=hh==='FBA'?t.fi:hh==='海外仓'?t.oi:hh==='PO'?t.pi:t.pu;sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>'});
+        HEAD.forEach(function(hh){var v=hh==='FBA'?t.fa:hh==='海外仓'?t.oa:hh==='PO'?t.pa:t.lo;sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>'});
+        sh+='</tr>';
     }
-    sh+='</tbody></table></div><div style="font-size:10px;color:var(--text-muted);margin-top:4px">变化 = 本周 − 上周（'+wkPrev+'→'+wkLabel+'，W前后对比为周快照数据）</div></div>';
+    sh+='</tbody></table></div></div>';
     document.getElementById("changeSummary").innerHTML=sh;
-    // ── 变化图（W33 vs W34 各仓对比柱状） ──
-    var cvs=document.getElementById("changeChart");
-    if(cvs&&typeof Chart!=='undefined'){
-        mkChart("changeChart",{type:"bar",
-            data:{labels:HEAD,datasets:[
-                {label:wkPrev,data:KEY.map(function(kk){return p[kk]}),backgroundColor:"rgba(37,99,235,.75)",borderRadius:4},
-                {label:wkLabel,data:KEY.map(function(kk){return c[kk]}),backgroundColor:"rgba(245,158,11,.75)",borderRadius:4}
-            ]},
-            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},
-                scales:{y:{beginAtZero:true,grid:{color:"rgba(0,0,0,.06)"}}}}});
-    }
-    // ── ASIN 明细表（新表头：到货增加/在库剩余/在途剩余） ──
-    var asins=items.map(function(i){
-        var pm=prevM[i.sku];
-        return {sku:i.sku,asin:i.asin||"",op:i.operator||"",sc:i.vc_sc||"",cat:i.category||"",
-            fa:sn(i.fba_avail),fi:sn(i.fba_inbound),pa:sn(i.po_avail),pi:sn(i.po_inbound),
-            oa:sn(i.overseas_avail),oi:sn(i.overseas_inbound),lo:sn(i.local_avail),pu:sn(i.purchase_inbound),
-            pfa:pm?pm.fa:null,pfi:pm?pm.fi:null,poa:pm?pm.oa:null,poi:pm?pm.oi:null,plo:pm?pm.lo:null,ppu:pm?pm.pu:null};
+    // 图表：本周入库 vs 上周入库 × 4渠道（分组柱状）
+    var chAgg={FBA:{cur:0,prev:0},PO:{cur:0,prev:0},'海外仓':{cur:0,prev:0},本地:{cur:0,prev:0}};
+    items.forEach(function(i){
+        var s=prevM[i.sku];
+        CHS.forEach(function(ch){
+            var q=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]):0;
+            chAgg[ch.k].cur+=q-ch.t(i);
+            chAgg[ch.k].prev+=q;
+        });
     });
-    var fg='background:var(--th-bg)', sgb='background:var(--accent-light)';
-    var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度变化明细（'+asins.length+'条）</div>';
+    mkChart("changeChart",{type:"bar",
+        data:{labels:['FBA','海外仓','PO','本地'],datasets:[
+            {label:wkPrev+"在途→入库",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].prev}),backgroundColor:"rgba(148,163,184,.6)",borderRadius:4},
+            {label:wkLabel+"入库",data:['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),backgroundColor:"rgba(37,99,235,.8)",borderRadius:4}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},
+            scales:{y:{beginAtZero:false,grid:{color:"rgba(0,0,0,.06)"}}}}});
+    // ASIN 明细（渠道入库 + 当前值，支持渠道/数量筛选）
+    var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度入库明细（'+chRows.length+'条'+(faCh||aMinN!==null?' · 已按'+(faCh||'')+(aMinN!==null?'入库≥'+aMinN:'')+'筛选':'')+'）</div>';
     dh+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
-    dh+='<th style="'+fg+'">运营</th><th style="'+fg+'">ASIN</th><th style="'+fg+'">商编</th><th style="'+fg+'">品类</th>';
-    dh+='<th style="'+fg+'">FBA到货增加</th><th style="'+fg+'">FBA在库剩余</th><th style="'+fg+'">FBA在途剩余</th>';
-    dh+='<th style="'+fg+';border-left:2px solid var(--accent)">PO在库</th><th style="'+fg+'">PO在途</th>';
-    dh+='<th style="'+fg+';border-left:2px solid var(--accent)">海外仓到货增加</th><th style="'+fg+'">海外仓在库剩余</th><th style="'+fg+'">海外仓在途剩余</th>';
-    dh+='<th style="'+fg+';border-left:2px solid var(--accent)">本地到货增加</th><th style="'+fg+'">本地仓在库剩余</th><th style="'+fg+'">采购剩余</th>';
+    dh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>渠道</th>';
+    dh+='<th>入库数量</th><th>在库剩余</th><th>在途剩余</th>';
     dh+='</tr></thead><tbody>';
-    var disp=asins.slice(0,300);
-    disp.forEach(function(a){
-        var chg=function(cur,prev,unit){if(prev===null)return'<span style="color:var(--text-muted)">—</span>';var d=Math.round(cur-prev);var col=d>=0?'color:var(--green)':'color:var(--red)';return'<span style="'+col+'">'+(d>=0?'+':'')+d.toLocaleString("en-US")+' '+unit+'</span>'};
-        var rem=function(v){return fc(v)+' <span style="color:var(--text-muted);font-size:10px">PCS</span>'};
-        dh+='<tr><td>'+a.op+'</td><td><a href="https://www.amazon.com/dp/'+a.asin+'" target="_blank">'+a.asin+'</a></td><td>'+a.sc+'</td><td>'+a.cat+'</td>';
-        dh+='<td class="num" style="'+sgb+'">'+chg(a.fa,a.pfa,'PCS')+'</td><td class="num">'+rem(a.fa)+'</td><td class="num">'+rem(a.fi)+'</td>';
-        dh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(a.pa)+'</td><td class="num">'+fc(a.pi)+'</td>';
-        dh+='<td class="num" style="'+sgb+';border-left:2px solid var(--accent)">'+chg(a.oa,a.poa,'PCS')+'</td><td class="num">'+rem(a.oa)+'</td><td class="num">'+rem(a.oi)+'</td>';
-        dh+='<td class="num" style="'+sgb+';border-left:2px solid var(--accent)">'+chg(a.lo,a.plo,'PCS')+'</td><td class="num">'+rem(a.lo)+'</td><td class="num">'+rem(a.pu)+'</td>';
-        dh+='</tr>';
+    var disp=chRows.slice(0,400);
+    disp.forEach(function(r){
+        var a=r.i;
+        dh+='<tr><td>'+(a.operator||'')+'</td><td><a href="https://www.amazon.com/dp/'+a.asin+'" target="_blank">'+a.asin+'</a></td><td>'+(a.vc_sc||'')+'</td><td>'+(a.category||'')+'</td>';
+        dh+='<td>'+(r.ch==='FBA'?'<span class="badge badge-blue">FBA</span>':r.ch==='PO'?'<span class="badge badge-red">PO</span>':r.ch==='海外仓'?'<span class="badge badge-green">海外仓</span>':'<span class="badge badge-purple">本地</span>')+'</td>';
+        dh+='<td class="num" style="'+fcol(r.arr)+';font-weight:600">'+fsign(r.arr)+'</td>';
+        dh+='<td class="num">'+fc(r.cur)+'</td><td class="num" style="color:var(--text-muted)">'+fc(r.t)+'</td></tr>';
     });
-    dh+='</tbody></table></div>';if(asins.length>300)dh+='<div style="font-size:11px;color:var(--text-muted)">显示前300条，共'+asins.length+'条</div>';
+    dh+='</tbody></table></div>';if(chRows.length>400)dh+='<div style="font-size:11px;color:var(--text-muted)">显示前400条，共'+chRows.length+'条</div>';
     document.getElementById("changeDetail").innerHTML=dh;
     // 筛选下拉
     if(document.getElementById("fCatChange").options.length<=1){var cats={};D.items.forEach(function(i){if(i.category)cats[i.category]=true});var ch='<option value="">全部品类</option>';Object.keys(cats).sort().forEach(function(c){ch+='<option>'+c+'</option>'});document.getElementById("fCatChange").innerHTML=ch}
     if(document.getElementById("fOpChange").options.length<=1){var oos={};D.items.forEach(function(i){if(i.operator)oos[i.operator]=true});var oh='<option value="">全部运营</option>';Object.keys(oos).sort().forEach(function(o){oh+='<option>'+o+'</option>'});document.getElementById("fOpChange").innerHTML=oh}
+}
+function applyArriveFilter(){renderChange()}
+function clearArriveFilter(){document.getElementById('fChArrive').value='';document.getElementById('arriveMin').value='';renderChange()}
+function exportChangeCSV(){
+    if(!D||!D.items)return;
+    var ws=D.week_snapshots||{},wks=Object.keys(ws).sort();
+    var prev=wks.length>1?ws[wks[wks.length-2]]:null,now=wks.length?ws[wks[wks.length-1]]:null;
+    function idx(snap){var m={};if(!snap||!snap.items)return m;snap.items.forEach(function(a){if(a&&a[0])m[a[0]]={fa:a[1],fi:a[2],pa:a[3],pi:a[4],oa:a[5],oi:a[6],lo:a[7],pu:a[8]}});return m}
+    var prevM=idx(prev),nowM=idx(now);
+    var lines=['\uFEFF运营,ASIN,商编,品类,渠道,入库数量,在库剩余,在途剩余'];
+    D.items.forEach(function(i){
+        var s=prevM[i.sku];
+        [['FBA','fi',sn(i.fba_inbound),sn(i.fba_avail)],['PO','pi',sn(i.po_inbound),sn(i.po_avail)],['海外仓','oi',sn(i.overseas_inbound),sn(i.overseas_avail)],['本地','pu',sn(i.purchase_inbound),sn(i.local_avail)]].forEach(function(c){
+            var arr=s?(s[c[1]]-c[2]):0;
+            lines.push([i.operator||'',i.asin||'',i.vc_sc||'',i.category||'',c[0],Math.round(arr),Math.round(c[3]),Math.round(c[2])].join(','));
+        });
+    });
+    var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='库存变化_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 // ── Drag-drop ──
 document.addEventListener('dragover',function(e){e.preventDefault()});
