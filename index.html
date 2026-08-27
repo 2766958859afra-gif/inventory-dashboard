@@ -1784,17 +1784,31 @@ function openDoc(){document.getElementById('modalDoc').classList.add('show')}
 function closeDoc(){document.getElementById('modalDoc').classList.remove('show')}
 function openFeedback(){document.getElementById('modalFb').classList.add('show');renderFeedbackList()}
 function closeFeedback(){document.getElementById('modalFb').classList.remove('show')}
+function postFeedback(fb){
+    var ep=null;
+    if(location.protocol==='http:'&&(location.port==='8768'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+        ep=location.origin+'/api/feedback';
+    }
+    if(!ep)return Promise.resolve('local');
+    return fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fb)})
+        .then(function(r){return r.json()}).then(function(d){return d&&d.ok?'server':'local'})
+        .catch(function(){return 'local'});
+}
 function saveFeedback(){
     var panel=document.getElementById('fbPanel').value, mod=document.getElementById('fbModule').value.trim(),
         prob=document.getElementById('fbProblem').value.trim(), sugg=document.getElementById('fbSuggest').value.trim(),
         op=document.getElementById('fbOp').value;
     if(!prob&&!sugg){alert('请至少填写问题描述或改进建议');return}
     var list=JSON.parse(localStorage.getItem(FB_KEY)||'[]');
-    list.push({panel:panel,module:mod,problem:prob,suggest:sugg,op:op,time:new Date().toLocaleString('zh-CN',{hour12:false})});
+    var fb={panel:panel,module:mod,problem:prob,suggest:sugg,op:op,time:new Date().toLocaleString('zh-CN',{hour12:false})};
+    list.push(fb);
     localStorage.setItem(FB_KEY,JSON.stringify(list));
     ['fbModule','fbProblem','fbSuggest'].forEach(function(id){document.getElementById(id).value=''});
     renderFeedbackList();
-    alert('✅ 反馈已保存到本浏览器（共'+list.length+'条）。点击「导出CSV」或「复制文本」发送给看板负责人。');
+    postFeedback(fb).then(function(mode){
+        if(mode==='server'){alert('✅ 反馈已提交并自动上报给看板负责人（共'+list.length+'条本机记录）。感谢反馈！');}
+        else{alert('✅ 反馈已保存到本浏览器（共'+list.length+'条）。当前为公网版无法自动上报，请点「导出CSV」或「复制文本」发给看板负责人。');}
+    });
 }
 function renderFeedbackList(){
     var list=JSON.parse(localStorage.getItem(FB_KEY)||'[]');
@@ -1891,7 +1905,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDoc();
 <button class="btn-sm" onclick="clearFeedback()" style="color:var(--red);border-color:var(--red)">🗑 清空</button>
 <span style="font-size:11px;color:var(--text-muted);margin-left:auto" id="fbCount"></span>
 </div>
-<div class="tip" style="margin-top:10px">💡 反馈保存在<b>本浏览器</b>（每人各自保存）。提交后点「导出CSV」或「复制文本」发送给看板负责人汇总。</div>
+<div class="tip" style="margin-top:10px">💡 内网版（172.22.x.x:8768）提交后<b>自动上报</b>给看板负责人；公网版（GitHub Pages）自动降级为本地保存，可点「导出CSV」或「复制文本」发送。</div>
 <div class="fb-list" id="fbList"></div>
 </div>
 </div></div>
