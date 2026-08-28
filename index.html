@@ -2372,7 +2372,17 @@ function openSettings(){
         if(!blk)return;
         blk.querySelector('.op-enable').checked=c.enabled!==false;
         blk.querySelector('.op-webhook').value=c.webhook||'';
-        blk.querySelector('.op-wd').value=(c.weekday!==undefined?c.weekday:0);
+        var wds=c.weekdays||(c.weekday!==undefined?[c.weekday]:[0]);
+        var wdsBox=blk.querySelector('.op-wds');
+        if(wdsBox.children.length===0){
+            ['周一','周二','周三','周四','周五','周六','周日'].forEach(function(w,i){
+                var lb=document.createElement('label');
+                lb.style.cssText='display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer';
+                var cb=document.createElement('input');cb.type='checkbox';cb.value=i;cb.style.cssText='accent-color:var(--accent)';
+                lb.appendChild(cb);lb.appendChild(document.createTextNode(w));wdsBox.appendChild(lb);
+            });
+        }
+        wdsBox.querySelectorAll('input').forEach(function(cb){cb.checked=wds.indexOf(parseInt(cb.value))>=0});
         blk.querySelector('.op-time').value=c.time||'09:00';
         blk.querySelectorAll('input[type=checkbox].sub-cb').forEach(function(cb){cb.checked=(c.subs||[]).indexOf(cb.value)>=0});
     });
@@ -2386,9 +2396,11 @@ function gatherOps(){
         if(!blk)return;
         var subs=[];
         blk.querySelectorAll('.op-set input[type=checkbox].sub-cb:checked').forEach(function(cb){subs.push(cb.value)});
+        var wds=[];
+        blk.querySelectorAll('.op-wds input:checked').forEach(function(cb){wds.push(parseInt(cb.value))});
         ops[op]={enabled:blk.querySelector('.op-enable').checked,
             webhook:blk.querySelector('.op-webhook').value.trim(),
-            weekday:parseInt(blk.querySelector('.op-wd').value),
+            weekdays:wds.length?wds:[0],
             time:blk.querySelector('.op-time').value||'09:00',
             subs:subs};
     });
@@ -2420,6 +2432,17 @@ function testPushOp(op){
             document.getElementById('setMsg').textContent='';
         }).catch(function(){if(msg)msg.textContent='❌ 服务未运行'});
 }
+
+// 星期快捷按钮：每日=全选；隔日=一三五/二四六
+document.addEventListener('click',function(e){
+    var q=e.target.closest('.op-quick');
+    if(!q)return;
+    var blk=q.closest('.op-set');
+    var boxes=blk.querySelectorAll('.op-wds input');
+    if(q.dataset.op==='daily'){boxes.forEach(function(cb){cb.checked=true})}
+    else if(q.dataset.op==='alt'){boxes.forEach(function(cb,i){cb.checked=(i%2===0)})}
+    else if(q.dataset.op==='alt2'){boxes.forEach(function(cb,i){cb.checked=(i%2===1)})}
+});
 </script>
 
 
@@ -2453,23 +2476,95 @@ function testPushOp(op){
 <div class="tip"><b>数据优先级</b>：BI/ERP 实时字段（FBA/海外仓/本地库存）默认保留实时值；BI 抓不到的（PO、销量、IFS、库龄、入库、采购在途）从模板对应子表抓取，不混用。</div>
 <h3>四、各板块使用教程</h3>
 <h4>📋 板块1 进销存总览</h4>
-<p><b>怎么用</b>：① 点顶部「导入数据（总表）」展开 → 下载「库存看板数据-模板.xlsx」；② 组长把系统下载的 6 个表去表头行后粘贴到模板对应子表（进销存报表/运营综合分析明细/VC库存销售汇总/库存明细报表/库龄报表/IFS待发货）；③ 保存后点「选择文件」上传 → 看导入日志确认每个子表解析行数。</p>
-<p><b>逻辑</b>：没填的字段自动用 BI/ERP 实时数据，填了以你填的为准（进销存报表优先级最高）。顶部的「品类/运营汇总表」展示 FBA可用/在途、PO在库/在途、海外仓、本地、总30天销量 + 5 个库销比列。下方「ASIN-运营映射表」可折叠、可搜索、可导出CSV（运营归属在这里维护）。右上角可切换数据源（FBA/PO/海外仓/本地）并导出CSV。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li>① 点顶部「导入数据（总表）」展开 → 下载「库存看板数据-模板.xlsx」</li>
+<li>② 组长把系统下载的 <b>6 个表</b>去表头行后粘贴到模板对应子表（进销存报表/运营综合分析明细/VC库存销售汇总/库存明细报表/库龄报表/IFS待发货）</li>
+<li>③ 保存后点「选择文件」上传 → 看导入日志确认每个子表解析行数</li>
+<li>④ 右上角切换数据源（FBA/PO/海外仓/本地）并导出CSV</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li>没填的字段自动用 BI/ERP 实时数据；填了以你填的为准（进销存报表优先级最高）</li>
+<li>汇总表：FBA可用/在途、PO在库/在途、海外仓、本地、总30天销量 + 5 个库销比</li>
+<li>下方「ASIN-运营映射表」：可折叠/搜索/导出CSV（运营归属在这里维护）</li>
+</ul>
 <h4>📊 板块2 库存结构</h4>
-<p><b>怎么用</b>：顶部切换 全部/SC/VC 三种口径看「各运营·库存构成」；下方 6 个图表分别看 SC vs VC 销量、品类库存分布、运营/品类库销比（6维度：FBA/PO/可用/离岸/成品/全链路）、商品状态分布。</p>
-<p><b>逻辑</b>：<b>口径</b>：SC=FBA可用+采购在途+本地；VC=PO在库+在途+海外仓+采购在途+本地。库销比6维度的含义：FBA=(FBA可用+在途)/销量；PO=(PO在库+在途)/销量；可用=(FBA可用+PO在库)/销量；离岸=全部海外库存/销量；成品=离岸+本地/销量；全链路=成品+采购在途/销量。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li>顶部切换 全部/SC/VC 口径看「各运营·库存构成」</li>
+<li>下方 6 个图表：SC vs VC 销量、品类库存分布、运营/品类库销比（6维度）、商品状态分布</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li><b>口径</b>：SC=FBA可用+采购在途+本地；VC=PO在库+在途+海外仓+采购在途+本地</li>
+<li>库销比6维度：FBA=(可用+在途)/销量；PO=(在库+在途)/销量；可用=(FBA可用+PO在库)/销量；离岸=海外全部/销量；成品=离岸+本地/销量；全链路=成品+采购在途/销量</li>
+</ul>
 <h4>📈 板块3 库销比分析</h4>
-<p><b>怎么用</b>：顶部筛选栏按 搜索SKU/ASIN、品类、运营、渠道（SC/VC/双链路）、状态、等级 组合筛选；点表头可排序；📥 导出CSV。下方「SC vs VC 库销比对比」看双链路SKU两个渠道的库销比差异，差异大建议转移购物车。</p>
-<p><b>逻辑</b>：ASIN 明细表 20 列含 SC/VC 销量、5 个库销比、状态/等级。<b>判断标准</b>：可用库销比=(FBA可用+PO可用)/近30天销量，&lt;2 有断货风险、2-4 正常、4-7 需动销、&gt;7 库存积压、0 销量=沉睡。<b>数据来源</b>：库存=BI实时；销量=运营综合分析表；属性=映射表。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li>筛选栏：搜索SKU/ASIN、品类、运营、渠道（SC/VC/双链路）、状态、等级</li>
+<li>点表头排序；📥 导出CSV</li>
+<li>「SC vs VC 库销比对比」：差异大→建议转移购物车</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li>判断标准：可用库销比=(FBA可用+PO可用)/近30天销量 —— <b>&lt;2 断货风险 / 2-4 正常 / 4-7 需动销 / &gt;7 积压 / 0销量=沉睡</b></li>
+<li>数据来源：库存=BI实时；销量=运营综合分析表；属性=映射表</li>
+</ul>
 <h4>📦 板块4 库存变化</h4>
-<p><b>怎么用</b>：顶部「📦 0库存到货统计表」：FBA+PO 均无库存的断货ASIN，按总在途排序，看<b>什么时候批量回货</b>（预计回货周=总在途÷周均销量，≤4周标红），运营据此安排推广。下方 KPI 4 卡=渠道净到货（在途减少）；周对比表含<b>总到货(方案A)</b>列；ASIN 明细每行=单ASIN 的到货/周销量/总在库/总在途/Δ各渠道在库，可按渠道+数量下限筛选；📥 导出CSV。</p>
-<p><b>逻辑</b>：<b>到货(方案A) = 本周在库 − 上周在库 + 本周销量</b>——把卖掉的加回来，彻底排除销量滚动干扰，精确统计"新到货多少"（可定位到每个ASIN）。本周销量来自运营综合分析明细表按<b>日期列自动聚合到自然周</b>。渠道净到货=上周在途−本周在途（受新发运抵消）。每周一更新数据后自动与上周一对比（SKU级周快照保留8周）。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li><b>0库存到货统计表</b>（顶部）：断货ASIN（FBA+PO均无）按总在途排序，看<b>预计回货周</b>（总在途÷周均销量，≤4周标红）→ 运营安排推广</li>
+<li><b>渠道周对比表</b>：每渠道 W33在库/W34在库/新增到货/消耗发走/在库Δ</li>
+<li><b>运营维度统计</b>：每运营 FBA纯滚入 / PO纯滚入 / 在库在途 / 可用Δ / 在途Δ</li>
+<li><b>ASIN 明细</b>：FBA纯滚入 / PO纯滚入 / 在库实际(Δ) / 在途实际(Δ)，下拉筛选 ΔFBA/Δ海外仓/ΔPO/Δ本地 + 数量下限</li>
+<li>📥 导出CSV</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li><b>纯滚入 = 本周在库 − 上周在库 + 实销</b>（把卖掉的加回来，排除销量干扰 = 纯滚进来的货）</li>
+<li>只看 <b>FBA 和 PO</b> 两个渠道（会产生销售）；海外仓/本地不产生销售只展示净变化</li>
+<li>实销：FBA 用 FBA实销、PO 用 PO实销（周维度数据导入后自动优先，否则用近30天实销）</li>
+<li>每周一更新数据后自动与上周一对比（SKU级周快照保留8周）</li>
+</ul>
 <h4>⚠ 板块5 运营洞察（风险预警）</h4>
-<p><b>怎么用</b>：顶部 全部/SC/VC/双链路 大按钮切换渠道（SC=FBA有库存PO无；VC=PO有库存FBA无；双链路=两链路都有；断货的ASIN按历史归属）；右侧输入可用库销比区间筛选（如 0-2 看断货风险）；表头点击排序；📥 导出CSV。</p>
-<p><b>逻辑</b>：5 级预警 = 断货风险(可用库销比≤2) / 正常(2-4) / 需要动销(4-7) / 库存积压(&gt;7) / 沉睡(近30天0动销)。断货的链接或高库销的链接都要重点处理。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li>顶部 全部/SC/VC/双链路 大按钮切换渠道（断货ASIN按历史归属）</li>
+<li>右侧输入可用库销比区间筛选（如 0-2 看断货风险）；表头排序；📥 导出CSV</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li>5 级预警：断货风险(≤2) / 正常(2-4) / 需要动销(4-7) / 库存积压(&gt;7) / 沉睡(0动销)</li>
+<li>断货的链接或高库销的链接都要重点处理</li>
+</ul>
 <h4>🚚 板块6 BTR建议提报</h4>
-<p><b>怎么用</b>：顶部选 运营/品类 筛选；两类表格：<b>类型1</b> PO在库&lt;20 且 海外仓&gt;20（海外仓有货，建议提报BTR）｜<b>类型2</b> PO在库&lt;20 且 海外仓&lt;20 且 海外仓在途&lt;20（两端都缺，建议发货到海外仓防断货）。每行「是否不来单」下拉（是/否）+ 备注框，<b>自动保存到本浏览器</b>（localStorage），下次打开保留；📥 导出CSV（含类型+设置状态）。</p>
-<p><b>逻辑</b>：仅统计 <b>VC 渠道</b> SKU（VC库存销售汇总表出现过的=is_vc=1；从未上 VC 的 SKU 不统计，建议发货无意义）。商编=KX/PT 开头的商品编码。箱规来自你下载的「库存数据」表的<b>单箱数量</b>列（1870个商编内嵌，一商编多箱规并列如 1/39/40）。</p>
+<p><b>怎么用</b></p>
+<ul>
+<li><b>类型1</b>：PO在库&lt;20 且 海外仓&gt;20（海外仓有货，建议提报BTR）</li>
+<li><b>类型2</b>：PO在库&lt;20 且 海外仓&lt;20 且 海外仓在途&lt;20（两端都缺，建议发货海外仓防断货）</li>
+<li>每行「是否不来单」下拉 + 备注框 <b>自动保存</b>（本浏览器）；📥 导出CSV</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li>仅统计 <b>VC 渠道</b> SKU（VC表出现过的=is_vc=1；未上VC的不统计）</li>
+<li>商编 = KX/PT 开头的商品编码；箱规 = 库存数据表「单箱数量」（1870商编内嵌，多箱规并列如 1/39/40）</li>
+</ul>
+<h4>⚙ 设置（运营个人机器人提醒）</h4>
+<p><b>怎么用</b></p>
+<ul>
+<li>右上角「⚙ 设置」→ 每位运营（向海/张紫莹/戴杨芳/尹芳/雷冰洁1/陈景/方静敏）一行</li>
+<li>填自己钉钉机器人的 Webhook → 勾选订阅内容（BTR/0库存/断货/库龄/IFS）</li>
+<li>选推送日期：<b>勾选星期几</b>（快捷：每日 / 隔日一三五 / 隔日二四六）+ 具体时间（HH:MM）</li>
+<li>💾 保存全部设置 → 🚀 测试按钮立即推一条</li>
+</ul>
+<p><b>逻辑</b></p>
+<ul>
+<li>每个机器人<b>只推送该运营自己的数据</b>（按运营维度过滤，不涉及他人）</li>
+<li>本机服务每10分钟检查一次，到点 ±5分钟推送；同一天同一时段不重复</li>
+<li>苏雨晴/PHILTOP 未开放（可联系管理员）</li>
+</ul>
 <h3>五、更新机制</h3>
 <p>每日 <b>15:00</b> cron 自动拉取 ERP 库存（1251 SKU 分批）→ 更新 data.json → 推 GitHub Pages。<b>快照机制</b>：跨天更新时自动把当前值存为 prev_snapshot，作为次日库存变化对比基线。</p>
 <h3>六、故障排查</h3>
@@ -2498,8 +2593,11 @@ function testPushOp(op){
 <input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
-<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<span class="op-wds" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2514,6 +2612,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2528,6 +2629,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2542,6 +2646,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2556,6 +2663,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2570,6 +2680,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
@@ -2584,6 +2697,9 @@ function testPushOp(op){
 <span style="font-size:11px;color:var(--text-muted)">推送：</span>
 <select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
 <input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<button class="btn-sm op-quick" data-op="daily" style="padding:1px 8px;font-size:10px">每日</button>
+<button class="btn-sm op-quick" data-op="alt" style="padding:1px 8px;font-size:10px">隔日(一三五)</button>
+<button class="btn-sm op-quick" data-op="alt2" style="padding:1px 8px;font-size:10px">隔日(二四六)</button>
 <span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
 <div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
 <span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
