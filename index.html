@@ -209,7 +209,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <select class="filter-select" id="fOpBtr" onchange="renderBtr()"><option value="">全部运营</option></select>
 <select class="filter-select" id="fCatBtr" onchange="renderBtr()"><option value="">全部品类</option></select>
 <button class="btn-sm" onclick="exportBtrCSV()" style="margin-left:auto">📥 导出CSV</button>
-<button class="btn-sm" onclick="openDoc()">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()">📮 意见反馈</button>
+<button class="btn-sm" onclick="openDoc()">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()">📮 意见反馈</button><button class="btn-sm" onclick="openSettings()">⚙ 设置</button>
 </div></div>
 <div class="page-content">
 <div class="pivot-block" style="margin-bottom:12px"><div style="font-size:12px;color:var(--text-muted);line-height:1.7">
@@ -2373,6 +2373,43 @@ function exportBtrCSV(){
     var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='BTR建议提报_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
+
+// ── 设置：运营个人机器人 ──
+function openSettings(){
+    document.getElementById('modalSet').style.display='flex';
+    try{
+        var s=JSON.parse(localStorage.getItem('dash_settings')||'{}');
+        if(s.webhook)document.getElementById('setWebhook').value=s.webhook;
+        document.getElementById('setFreq').value=s.freq||'off';
+        var subs=s.subs||[];
+        document.querySelectorAll('#setSubs input').forEach(function(cb){cb.checked=subs.indexOf(cb.value)>=0});
+    }catch(e){}
+}
+function closeSettings(){document.getElementById('modalSet').style.display='none'}
+function gatherSet(){
+    var s={webhook:document.getElementById('setWebhook').value.trim(),
+        subs:[],freq:document.getElementById('setFreq').value};
+    document.querySelectorAll('#setSubs input:checked').forEach(function(cb){s.subs.push(cb.value)});
+    return s;
+}
+function saveSettings(){
+    var s=gatherSet();
+    if(!s.webhook){document.getElementById('setMsg').textContent='⚠ 请填写钉钉机器人 Webhook';return}
+    localStorage.setItem('dash_settings',JSON.stringify(s));
+    fetch('http://'+location.host+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+        .then(function(r){return r.json()}).then(function(j){
+            document.getElementById('setMsg').textContent=j.ok?'✅ 已保存（'+s.freq+' '+s.subs.length+'项订阅）':'⚠ 本机保存失败';
+        }).catch(function(){document.getElementById('setMsg').textContent='⚠ 仅本浏览器保存（本机服务未运行）'});
+}
+function testPush(){
+    var s=gatherSet();
+    if(!s.webhook){document.getElementById('setMsg').textContent='⚠ 请填写 Webhook';return}
+    document.getElementById('setMsg').textContent='发送中...';
+    fetch('http://'+location.host+'/api/push_test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+        .then(function(r){return r.json()}).then(function(j){
+            document.getElementById('setMsg').textContent=j.ok?('✅ 已推送（'+j.result+'）'):('❌ '+j.error);
+        }).catch(function(){document.getElementById('setMsg').textContent='❌ 本机服务未运行'});
+}
 </script>
 
 
@@ -2435,6 +2472,38 @@ function exportBtrCSV(){
 </div>
 </div></div>
 
+<!-- 设置弹窗 -->
+<div class="modal-overlay" id="modalSet" onclick="if(event.target===this)closeSettings()">
+<div class="modal-box" style="max-width:560px">
+<div class="modal-head"><h2>⚙ 运营个人机器人设置</h2><button class="modal-close" onclick="closeSettings()">✕</button></div>
+<div class="modal-body" style="font-size:13px;line-height:1.8">
+<div class="fb-row"><label>钉钉机器人 Webhook</label>
+<input id="setWebhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+</div>
+<div class="fb-row"><label>订阅提醒内容</label>
+<div id="setSubs" style="display:flex;flex-wrap:wrap;gap:6px">
+<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="btr"> BTR建议提报</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="stock0"> 0库存到货</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="risk"> 断货风险</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="age90"> 库龄超90天</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="ifs"> IFS待发货</label>
+</div></div>
+<div class="fb-row"><label>提醒频率</label>
+<select id="setFreq" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<option value="off">关闭</option>
+<option value="mon">每周一 09:00</option>
+<option value="daily">每天 09:00</option>
+<option value="sun">每周日 09:00</option>
+</select>
+<span style="font-size:11px;color:var(--text-muted)"> 保存后由本机服务定时推送</span></div>
+<div style="margin-top:14px;display:flex;gap:8px">
+<button class="btn-sm" onclick="saveSettings()" style="padding:6px 16px">💾 保存设置</button>
+<button class="btn-sm" onclick="testPush()" style="padding:6px 16px">🚀 测试推送</button>
+<span id="setMsg" style="font-size:12px;color:var(--text-muted)"></span>
+</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:8px">
+设置保存在本机服务（内网 8768）→ 定时任务每周一/每天读取 data.json 生成摘要 → 推送到你的钉钉机器人。机器人需在钉钉群中添加，开启「自定义关键词」或加签（当前未加签）。测试推送会立即发一条。</div>
+</div></div></div>
 <!-- 意见反馈弹窗 -->
 <div class="modal-overlay" id="modalFb" onclick="if(event.target===this)closeFeedback()">
 <div class="modal-box" style="max-width:560px">
