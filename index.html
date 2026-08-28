@@ -255,7 +255,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 </div></div>
 <div class="page-content">
 <div id="changeStock0"></div>
-<div class="kpi-row" id="changeKpi"></div>
+<div id="changeKpi" style="display:none"></div>
+<div id="changeChannels"></div>
 <div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道周对比</h2><div class="chart-wrap" style="height:300px"><canvas id="changeChart"></canvas></div></div>
 <div id="changeSummary"></div>
 <div class="channel-bar" style="margin:14px 0 8px">
@@ -1818,7 +1819,7 @@ function renderChange(){
     zh+='<div class="kpi-card"><div class="label">本周总到货</div><div class="value" style="color:var(--green);font-size:24px">'+fsign(zkArr)+'</div></div>';
     zh+='<div class="kpi-card"><div class="label">30D销量合计</div><div class="value" style="font-size:24px">'+fc(zkSl)+'</div></div>';
     zh+='</div>';
-    zh+='<div class="pivot-table-wrap" style="max-height:420px"><table class="pivot-table"><thead><tr>';
+    zh+='<div class="pivot-table-wrap" style="max-height:420px;overflow-x:auto"><table class="pivot-table" style="width:100%;font-size:11px"><thead><tr>';
     zh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>30D销量</th>';
     zh+='<th style="border-left:2px solid var(--accent)">FBA可用</th><th>FBA在途</th><th>FBA本周到货</th>';
     zh+='<th style="border-left:2px solid var(--accent)">PO可用</th><th>PO在途</th><th>PO本周到货</th>';
@@ -1855,7 +1856,7 @@ document.getElementById("changeStock0").innerHTML=zh;
     });
         var kh='<div class="pivot-block" style="margin-bottom:14px">';
     kh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 6px">📊 渠道周对比 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（本周到货 = max(0, 本周在库−上周在库+实销)；海外仓/本地无销售，到货=在库净增）</span></div>';
-    kh+='<div class="pivot-table-wrap"><table class="pivot-table" style="min-width:720px"><thead><tr>';
+    kh+='<div class="pivot-table-wrap"><table class="pivot-table" style="width:100%"><thead><tr>';
     kh+='<th style="font-size:13px;padding:12px 14px">渠道</th><th style="font-size:13px;padding:12px 14px">'+wkPrev+'在库</th><th style="font-size:13px;padding:12px 14px">'+wkLabel+'在库</th>';
     kh+='<th style="border-left:2px solid var(--accent);font-size:13px;padding:12px 14px">本周到货</th><th style="font-size:13px;padding:12px 14px">消耗/发走</th><th style="font-size:13px;padding:12px 14px">在库Δ</th></tr></thead><tbody>';
     CHS.forEach(function(k){
@@ -1867,7 +1868,7 @@ document.getElementById("changeStock0").innerHTML=zh;
         kh+='<td class="num" style="'+fcol(delta)+';font-size:14px;padding:14px">'+fsign(delta)+'</td></tr>';
     });
     kh+='</tbody></table></div></div>';
-document.getElementById("changeKpi").innerHTML=kh;
+document.getElementById("changeChannels").innerHTML=kh;
     // ── 图表：渠道×指标 分组柱状（W33/W34在库 + 到货 + 消耗） ──
     mkChart("changeChart", {
         type: 'bar',
