@@ -1779,7 +1779,7 @@ function renderChange(){
         var cur=items.reduce(function(s,i){return s+ch.f(i)},0);
         var tcur=items.reduce(function(s,i){return s+ch.t(i)},0);
         var arr=0;
-        if(ch.k==='FBA'&&D.items[0]&&'arrive_7d' in D.items[0]){items.forEach(function(i){arr+=sn(i.arrive_7d)})}
+        if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
         else if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
         k+='<div class="kpi-card"><div class="label">'+ch.k+'入库</div><div class="value" style="font-size:17px;'+fcol(arr)+'">'+fsign(arr)+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
         k+='<div style="font-size:10px;color:var(--text-muted);border-top:1px dashed var(--border);margin-top:4px;padding-top:4px">在途 '+fc(tcur)+' · 在库 '+fc(cur)+'</div></div>';
@@ -1793,7 +1793,8 @@ function renderChange(){
         var d=byOp[o];d.sk++;
         d.fa+=sn(i.fba_avail);d.fi+=sn(i.fba_inbound);d.pa+=sn(i.po_avail);d.pi+=sn(i.po_inbound);
         d.oa+=sn(i.overseas_avail);d.oi+=sn(i.overseas_inbound);d.lo+=sn(i.local_avail);d.pu+=sn(i.purchase_inbound);
-        d.arr.FBA+=sn(i.arrive_7d);
+        var sf=prevM[i.sku];
+        if(sf)d.arr.FBA+=(sf.fi-sn(i.fba_inbound));
         var s=prevM[i.sku];
         if(s){
             d.arr.PO+=(s.pi-sn(i.po_inbound));
@@ -1807,7 +1808,7 @@ function renderChange(){
     items.forEach(function(i){
         CHS.forEach(function(ch){
             var s=prevM[i.sku];
-            var arr=ch.k==='FBA'?sn(i.arrive_7d):(s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0);
+            var arr=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0;
             if(faCh&&ch.k!==faCh)return;
             if(aMinN!==null&&arr<aMinN)return;
             chRows.push({i:i,ch:ch.k,arr:arr,cur:ch.f(i),t:ch.t(i)});
@@ -1857,7 +1858,7 @@ function renderChange(){
         var s=prevM[i.sku];
         CHS.forEach(function(ch){
             var q=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]):0;
-            chAgg[ch.k].cur+=ch.k==='FBA'?sn(i.arrive_7d):(q-ch.t(i));
+            chAgg[ch.k].cur+=q-ch.t(i);
             chAgg[ch.k].prev+=q;
         });
     });
@@ -1912,7 +1913,7 @@ function exportChangeCSV(){
     D.items.forEach(function(i){
         var s=prevM[i.sku];
         [['FBA','fi',sn(i.fba_inbound),sn(i.fba_avail)],['PO','pi',sn(i.po_inbound),sn(i.po_avail)],['海外仓','oi',sn(i.overseas_inbound),sn(i.overseas_avail)],['本地','pu',sn(i.purchase_inbound),sn(i.local_avail)]].forEach(function(c){
-            var arr=c[0]==='FBA'?sn(i.arrive_7d):(s?(s[c[1]]-c[2]):0);
+            var arr=s?(s[c[1]]-c[2]):0;
             lines.push([i.operator||'',i.asin||'',i.vc_sc||'',i.category||'',c[0],Math.round(arr),Math.round(c[3]),Math.round(c[2])].join(','));
         });
     });
@@ -1945,36 +1946,53 @@ function handleNewDataImport(e){
             function colOf(rs,hr,keys){return findColIdx(rs[hr].map(function(x){return String(x||'').trim()}),keys)}
             function put(sk,field,val){if(val===''||val==null||val===undefined)return;if(!map[sk])map[sk]={};map[sk][field]=val}
             var SKIP=['合计','总计','小计','总合计'];
-            // ═══ 1. 运营综合分析明细 → 近30天销量（日/周/月维度聚合，最高优先） ═══
-            var sOp=s4('运营综合分析');
-            if(sOp){
-                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sOp],{header:1,defval:''});
-                var hr=findHdr(rs,['平台销售编码','出库销量']);
+            // ══ 优先级：BI实时字段(fba/overseas/local库存)保留；BI抓不到的(PO/销量/库龄/IFS)从表覆盖 ══
+            // ── 1. 库存明细报表（BI参考，按SKU聚合，仅在BI无数据时兜底） ──
+            var sInv=s4('库存明细');
+            if(sInv){
+                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sInv],{header:1,defval:''});
+                var hr=findHdr(rs,['SKU','可售库存','头程在途']);
                 if(hr>=0){
-                    var cSku=colOf(rs,hr,['sku']),cQ=colOf(rs,hr,['出库销量']),
-                        cAmt=colOf(rs,hr,['出库销售额']),cGM=colOf(rs,hr,['毛利率']),
-                        cFlow=colOf(rs,hr,['流量']),cCvr=colOf(rs,hr,['转化率']),cAdv=colOf(rs,hr,['广告花费']);
-                    var agg={},ct=0,curOp='';
+                    var cS=colOf(rs,hr,['SKU']),cAv=colOf(rs,hr,['可售库存']),cHt=colOf(rs,hr,['头程在途']),cPu=colOf(rs,hr,['采购在途（剩余订单）','采购在途']);
+                    var agg={},ct=0;
                     for(var r=hr+1;r<rs.length;r++){
-                        var rw=rs[r];
-                        var opCell=String(rw[0]||'').trim();
-                        if(['向海','张紫莹','戴杨芳','尹芳','雷冰洁','雷冰洁1','陈景','方静敏','苏雨晴','PHILTOP'].indexOf(opCell)>=0){curOp=opCell;continue}
-                        var sk=String(rw[cSku]||'').trim();
+                        var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        if(!agg[sk])agg[sk]={q:0,amt:0,gm:0,flow:0,cvr:0,adv:0,op:curOp};
-                        agg[sk].q+=Number(rw[cQ])||0;
-                        if(cAmt>=0)agg[sk].amt+=Number(rw[cAmt])||0;
-                        if(cGM>=0)agg[sk].gm=Math.max(agg[sk].gm,Number(rw[cGM])||0);
-                        if(cFlow>=0)agg[sk].flow+=Number(rw[cFlow])||0;
-                        if(cCvr>=0)agg[sk].cvr=Math.max(agg[sk].cvr,Number(rw[cCvr])||0);
-                        if(cAdv>=0)agg[sk].adv+=Number(rw[cAdv])||0;
+                        if(!agg[sk])agg[sk]={av:0,ht:0,pu:0};
+                        if(cAv>=0)agg[sk].av+=Number(rw[cAv])||0;
+                        if(cHt>=0)agg[sk].ht+=Number(rw[cHt])||0;
+                        if(cPu>=0)agg[sk].pu+=Number(rw[cPu])||0;
                         ct++;
                     }
-                    Object.keys(agg).forEach(function(sk){var a=agg[sk];put(sk,'sales_30d',a.q);if(a.amt)put(sk,'sales_amt_30d',a.amt);if(a.op)put(sk,'operator',a.op)});
-                    log.push('运营综合分析 ✓'+ct+'（销量='+Object.keys(agg).length+' SKU聚合）');
-                } else log.push('运营综合分析 ✗表头未识别');
+                    Object.keys(agg).forEach(function(sk){put(sk,'_inv_av',agg[sk].av);put(sk,'_inv_ht',agg[sk].ht);put(sk,'_inv_pu',agg[sk].pu)});
+                    log.push('库存明细 ✓'+ct);
+                } else log.push('库存明细 ✗表头未识别');
             }
-            // ═══ 2. VC库存销售汇总 → PO/VC数据 ═══
+            // ── 2. 库龄报表（按SKU聚合） ──
+            var sAge=s4('库龄');
+            if(sAge){
+                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sAge],{header:1,defval:''});
+                var hr=findHdr(rs,['商品编码','总库存','0-30天库存']);
+                if(hr>=0){
+                    var cS=colOf(rs,hr,['商品编码']),cT=colOf(rs,hr,['总库存']),
+                        cA1=colOf(rs,hr,['0-30天库存']),cA2=colOf(rs,hr,['31-60天库存']),cA3=colOf(rs,hr,['61-90天库存']),
+                        cA4=colOf(rs,hr,['91-180天库存']),cA5=colOf(rs,hr,['181-270天库存']),cA6=colOf(rs,hr,['271-365天库存']),cA7=colOf(rs,hr,['365天以上库存']),
+                        cS30=colOf(rs,hr,['30天出库销量']);
+                    var agg={},ct=0;
+                    for(var r=hr+1;r<rs.length;r++){
+                        var rw=rs[r],sk=String(rw[cS]||'').trim();
+                        if(!sk||SKIP.indexOf(sk)>=0)continue;
+                        if(!agg[sk])agg[sk]={t:0,a1:0,a2:0,a3:0,a4:0,a5:0,a6:0,a7:0,s30:0};
+                        var g=agg[sk];
+                        g.t+=Number(rw[cT])||0;g.a1+=Number(rw[cA1])||0;g.a2+=Number(rw[cA2])||0;g.a3+=Number(rw[cA3])||0;
+                        g.a4+=Number(rw[cA4])||0;g.a5+=Number(rw[cA5])||0;g.a6+=Number(rw[cA6])||0;g.a7+=Number(rw[cA7])||0;g.s30+=Number(rw[cS30])||0;
+                        ct++;
+                    }
+                    Object.keys(agg).forEach(function(sk){var g=agg[sk];put(sk,'age_total',g.t);put(sk,'age_0_30',g.a1);put(sk,'age_31_60',g.a2);put(sk,'age_61_90',g.a3);put(sk,'age_91_180',g.a4);put(sk,'age_181_270',g.a5);put(sk,'age_271_365',g.a6);put(sk,'age_365p',g.a7);put(sk,'age_sales_30d',g.s30)});
+                    log.push('库龄 ✓'+ct);
+                } else log.push('库龄 ✗表头未识别');
+            }
+            // ── 3. VC库存销售汇总（PO数据，BI抓不到） ──
             var sVc=s4('VC库存销售汇总')||s4('VC库存');
             if(sVc){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sVc],{header:1,defval:''});
@@ -1982,119 +2000,115 @@ function handleNewDataImport(e){
                 if(hr>=0){
                     var cS=colOf(rs,hr,['商品编码']),cPa=colOf(rs,hr,['PO在库']),
                         cPi=colOf(rs,hr,['PO在途_VC后台','PO在途']),cSl=colOf(rs,hr,['VC近30天销量']),
-                        cSf=colOf(rs,hr,['SC近30天销量']),cAge=colOf(rs,hr,['库龄超90天PO']);
-                    var vcm={},ct=0;
+                        cSf=colOf(rs,hr,['SC近30天销量']),cFa=colOf(rs,hr,['FBA在库']),
+                        cFi=colOf(rs,hr,['FBA在途']),cOa=colOf(rs,hr,['海外仓在库']),
+                        cOi=colOf(rs,hr,['海外仓在途']),cAge=colOf(rs,hr,['库龄超90天PO']);
+                    var vcMap={},ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        var row=[Number(rw[cPa])||0,Number(rw[cPi])||0,Number(rw[cSl])||0,Number(rw[cSf])||0,Number(rw[cAge])||0];
-                        if(!vcm[sk])vcm[sk]=row.slice();
-                        else for(var i2=0;i2<5;i2++)vcm[sk][i2]=Math.max(vcm[sk][i2],row[i2]);
+                        var rowV=[Number(rw[cPa])||0,Number(rw[cPi])||0,Number(rw[cSl])||0,Number(rw[cSf])||0,Number(rw[cAge])||0];
+                        if(!vcMap[sk])vcMap[sk]=rowV.slice();
+                        else for(var vi=0;vi<5;vi++)vcMap[sk][vi]=Math.max(vcMap[sk][vi],rowV[vi]);
                         ct++;
                     }
-                    Object.keys(vcm).forEach(function(sk){var v=vcm[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_sales_30d',v[2]);if(v[3]>0)put(sk,'fba_sales_30d',v[3]);if(v[4]>0)put(sk,'po_age90',v[4])});
+                    Object.keys(vcMap).forEach(function(sk){var v=vcMap[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_sales_30d',v[2]);if(v[3]>0)put(sk,'fba_sales_30d',v[3]);if(v[4]>0)put(sk,'po_age90',v[4])});
                     log.push('VC库存销售汇总 ✓'+ct);
                 } else log.push('VC库存销售汇总 ✗表头未识别');
             }
-            // ═══ 3. 库龄报表 → 库龄分档聚合 ═══
-            var sAge=s4('库龄');
-            if(sAge){
-                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sAge],{header:1,defval:''});
-                var hr=findHdr(rs,['商品编码','总库存','0-30天库存']);
-                if(hr>=0){
-                    var cS=colOf(rs,hr,['商品编码']),cT=colOf(rs,hr,['总库存']),
-                        cA=[colOf(rs,hr,['0-30天库存']),colOf(rs,hr,['31-60天库存']),colOf(rs,hr,['61-90天库存']),colOf(rs,hr,['91-180天库存']),colOf(rs,hr,['181-270天库存']),colOf(rs,hr,['271-365天库存']),colOf(rs,hr,['365天以上库存'])],
-                        cS30=colOf(rs,hr,['30天出库销量']);
-                    var agg={},ct=0;
-                    for(var r=hr+1;r<rs.length;r++){
-                        var rw=rs[r],sk=String(rw[cS]||'').trim();
-                        if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        if(!agg[sk])agg[sk]=[0,0,0,0,0,0,0,0,0];
-                        var g=agg[sk];g[0]+=Number(rw[cT])||0;
-                        for(var i3=0;i3<7;i3++)g[1+i3]+=Number(rw[cA[i3]])||0;
-                        g[8]+=Number(rw[cS30])||0;
-                        ct++;
-                    }
-                    Object.keys(agg).forEach(function(sk){var g=agg[sk];
-                        put(sk,'age_total',g[0]);put(sk,'age_0_30',g[1]);put(sk,'age_31_60',g[2]);put(sk,'age_61_90',g[3]);
-                        put(sk,'age_91_180',g[4]);put(sk,'age_181_270',g[5]);put(sk,'age_271_365',g[6]);put(sk,'age_365p',g[7]);put(sk,'age_sales_30d',g[8])});
-                    log.push('库龄报表 ✓'+ct);
-                } else log.push('库龄报表 ✗表头未识别');
-            }
-            // ═══ 4. 进销存报表 → 仅 BI 抓不到的（入库数量、采购在途兜底） ═══
+            // ── 4. 进销存报表（仅补采购在途/等级；BI实时库存字段保留） ──
             var sIn=s4('进销存');
             if(sIn){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sIn],{header:1,defval:''});
-                var hr=findHdr(rs,['商品编码','30天销量']);
+                var hr=findHdr(rs,['商品编码','FBA可用库存','30天销量']);
                 if(hr>=0){
-                    var cS=colOf(rs,hr,['商品编码']),
-                        cA7=colOf(rs,hr,['近7天入库数量']),cA14=colOf(rs,hr,['近14天入库数量']),cA30=colOf(rs,hr,['近30天入库数量']),
-                        cPu=colOf(rs,hr,['采购在途库存']),cG=colOf(rs,hr,['商品等级']),cBr=colOf(rs,hr,['品牌']);
+                    var cS=colOf(rs,hr,['商品编码']),cG=colOf(rs,hr,['商品等级']),
+                        cPu=colOf(rs,hr,['采购在途库存']),cSl=colOf(rs,hr,['30天销量']),
+                        cA7=colOf(rs,hr,['近7天入库数量']),cA14=colOf(rs,hr,['近14天入库数量']),cA30=colOf(rs,hr,['近30天入库数量']);
                     var ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
+                        if(cG>=0&&rw[cG])put(sk,'product_grade',String(rw[cG]).trim());
+                        if(cPu>=0&&Number(rw[cPu])>0)put(sk,'purchase_inbound',Number(rw[cPu]));
                         if(cA7>=0)put(sk,'arrive_7d',Number(rw[cA7])||0);
                         if(cA14>=0)put(sk,'arrive_14d',Number(rw[cA14])||0);
                         if(cA30>=0)put(sk,'arrive_30d',Number(rw[cA30])||0);
-                        if(cPu>=0)put(sk,'purchase_inbound',Number(rw[cPu])||0);   // BI接口=0时兜底
-                        if(cG>=0)put(sk,'product_grade',String(rw[cG]||'').trim());
-                        if(cBr>=0)put(sk,'brand',String(rw[cBr]||'').trim());
                         ct++;
                     }
-                    log.push('进销存报表 ✓'+ct+'（入库/采购在途）');
+                    log.push('进销存报表 ✓'+ct+'（仅补采购在途/等级/入库，销量改运营综合分析）');
                 } else log.push('进销存报表 ✗表头未识别');
             }
-            // ═══ 5. IFS待发货 ═══
+            // ── 5. 运营综合分析明细（销量+运营月度数据） ──
+            var sOp=s4('运营综合分析');
+            if(sOp){
+                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sOp],{header:1,defval:''});
+                var hr=findHdr(rs,['平台销售编码','出库销量']);
+                if(hr>=0){
+                    var cA=colOf(rs,hr,['平台销售编码']),cSku=colOf(rs,hr,['sku']),
+                        cQ=colOf(rs,hr,['出库销量']),cAmt=colOf(rs,hr,['出库销售额']),
+                        cGM=colOf(rs,hr,['毛利率']),cFlow=colOf(rs,hr,['流量']),cCvr=colOf(rs,hr,['转化率']),
+                        cAdv=colOf(rs,hr,['广告花费']);
+                    D.opMonthly=D.opMonthly||{};var curOp='',ct=0,salesAgg={};
+                    var OPS=['向海','张紫莹','戴杨芳','尹芳','雷冰洁','雷冰洁1','陈景','方静敏','苏雨晴','PHILTOP'];
+                    for(var r=hr+1;r<rs.length;r++){
+                        var rw=rs[r];
+                        var opCell=String(rw[0]||'').trim();
+                        if(opCell&&OPS.indexOf(opCell)>=0){curOp=opCell;continue}
+                        var a=String(rw[cA]||'').trim();
+                        if(!a||a==='合计')continue;
+                        var sku=String(rw[cSku]||'').trim();
+                        var q=Number(rw[cQ])||0;
+                        // 销量聚合（按sku）
+                        if(sku&&q>0){salesAgg[sku]=(salesAgg[sku]||0)+q}
+                        if(!D.opMonthly[a])D.opMonthly[a]={};
+                        var o=D.opMonthly[a];
+                        if(curOp)o.operator=curOp;
+                        if(q)o.q=(o.q||0)+q;
+                        if(cAmt>=0)o.amt=Number(rw[cAmt])||0;
+                        if(cGM>=0)o.gm=Number(rw[cGM])||0;
+                        if(cFlow>=0)o.flow=Number(rw[cFlow])||0;
+                        if(cCvr>=0)o.cvr=Number(rw[cCvr])||0;
+                        if(cAdv>=0)o.adv=Number(rw[cAdv])||0;
+                        if(sku)o.sku=sku;
+                        ct++;
+                    }
+                    // 销量覆盖 items（仅覆盖表里有的SKU）
+                    Object.keys(salesAgg).forEach(function(sk){put(sk,'sales_30d',salesAgg[sk])});
+                    log.push('运营综合分析 ✓'+ct+'（销量按SKU聚合）');
+                } else log.push('运营综合分析 ✗表头未识别');
+            }
+            // ── 6. IFS待发货（发货需求按商品编码聚合） ──
             var sIfs=s4('IFS');
             if(sIfs){
                 var rs=XLSX.utils.sheet_to_json(wb.Sheets[sIfs],{header:1,defval:''});
-                var hr=findHdr(rs,['SKU','IFS']);
+                var hr=findHdr(rs,['商品编码','发货数量']);
                 if(hr>=0){
-                    var cS=colOf(rs,hr,['SKU','商品编码']),cI=colOf(rs,hr,['IFS待发货数量','IFS','待发货']);
-                    var ct=0;
-                    for(var r=hr+1;r<rs.length;r++){
-                        var rw=rs[r],sk=String(rw[cS]||'').trim();
-                        if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        if(cI>=0)put(sk,'ifs_pending',Number(rw[cI])||0);
-                        ct++;
-                    }
-                    log.push('IFS待发货 ✓'+ct);
-                } else log.push('IFS待发货 ✗表头未识别');
-            }
-            // ═══ 6. 库存明细报表 → 采购在途兜底（BI实时优先，不覆盖） ═══
-            var sInv=s4('库存明细');
-            if(sInv){
-                var rs=XLSX.utils.sheet_to_json(wb.Sheets[sInv],{header:1,defval:''});
-                var hr=findHdr(rs,['SKU','采购在途（剩余订单）','采购在途']);
-                if(hr>=0){
-                    var cS=colOf(rs,hr,['SKU']),cPu=colOf(rs,hr,['采购在途（剩余订单）','采购在途']);
+                    var cS=colOf(rs,hr,['商品编码']),cQ=colOf(rs,hr,['发货数量']),
+                        cSt=colOf(rs,hr,['状态']),cT=colOf(rs,hr,['发货时间']);
                     var agg={},ct=0;
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        if(!agg[sk])agg[sk]=0;
-                        agg[sk]+=Number(rw[cPu])||0;
+                        if(!agg[sk])agg[sk]={q:0,cnt:0};
+                        agg[sk].q+=Number(rw[cQ])||0;agg[sk].cnt++;
                         ct++;
                     }
-                    Object.keys(agg).forEach(function(sk){if(agg[sk]>0)put(sk,'purchase_inbound',agg[sk])});
-                    log.push('库存明细 ✓'+ct+'（采购在途兜底）');
-                } else log.push('库存明细 ✗表头未识别');
+                    Object.keys(agg).forEach(function(sk){put(sk,'ifs_pending',agg[sk].q)});
+                    log.push('IFS待发货 ✓'+ct+'（'+Object.keys(agg).length+' SKU）');
+                } else log.push('IFS待发货 ✗表头未识别');
             }
-            // ═══ 合并：BI实时字段保留（fba/overseas/local不覆盖），BI抓不到的从表填 ═══
+            // ── 合并到 D.items（BI实时字段保留，只覆盖BI抓不到的） ──
             var cnt=0;
             D.items.forEach(function(it){
                 var m=map[it.sku];
                 if(!m)return;
                 cnt++;
-                // BI抓不到的字段：直接覆盖
-                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','sales_30d','sales_amt_30d','po_age90','arrive_7d','arrive_14d','arrive_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
-                // 采购在途：BI=0时用表（m.purchase_inbound 仅在表有值时写入，且原值0才覆盖）
-                if(m.purchase_inbound!==undefined&&(sn(it.purchase_inbound)===0))it.purchase_inbound=m.purchase_inbound;
-                // 属性：运营（来自运营综合分析分块）/等级/品牌
-                if(m.operator)it.operator=m.operator;
+                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','po_age90','purchase_inbound','sales_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d','arrive_7d','arrive_14d','arrive_30d'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
                 if(m.product_grade)it.product_grade=m.product_grade;
-                if(m.brand)it.brand=m.brand;
+                // 库存明细兜底：仅当BI字段缺失时
+                if(m._inv_av!==undefined&&(it.fba_avail===undefined||it.fba_avail===0))it.fba_avail=m._inv_av;
+                if(m._inv_ht!==undefined&&(it.fba_inbound===undefined||it.fba_inbound===0))it.fba_inbound=m._inv_ht;
             });
             D._imported=true;sd();
             renderPivot();renderStock();renderRatio();renderChange();renderAlerts();
@@ -2102,8 +2116,8 @@ function handleNewDataImport(e){
             if(typeof renderMapping==='function')renderMapping();
             if(prog){
                 prog.style.display='block';
-                prog.textContent='✅ 导入完成: '+log.join(' | ')+' ｜ 覆盖 '+cnt+'/'+D.items.length+' SKU（BI实时字段保留，未填的从表抓取）';
-                setTimeout(function(){prog.style.display='none'},10000);
+                prog.textContent='✅ 导入完成: '+log.join(' | ')+' ｜ 覆盖 '+cnt+'/'+D.items.length+' SKU（BI实时库存保留，抓不到的从模板覆盖）';
+                setTimeout(function(){prog.style.display='none'},9000);
             }
         }catch(err){
             if(prog){prog.style.display='block';prog.textContent='❌ 导入失败: '+err.message;prog.style.color='var(--red)'}
@@ -2238,7 +2252,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDoc();
 <tr><td>采购在途</td><td>模板（BI接口为0时）</td><td>进销存报表「采购在途库存」/ 库存明细「采购在途（剩余订单）」</td></tr>
 <tr><td>PO在库 / PO在途 / PO近30天销量 / 库龄超90天PO</td><td>模板「VC库存销售汇总」</td><td>BI 抓不到，从模板导入（同SKU多行取最大值）</td></tr>
 <tr><td>近30天销量</td><td>模板「运营综合分析明细」</td><td>BI 抓不到。按 sku 聚合「出库销量」（日/周/月维度均可）</td></tr>
-<tr><td>IFS待发货</td><td>模板「IFS待发货」</td><td>BI 抓不到（等待 ERP 权限）</td></tr>
+<tr><td>IFS待发货</td><td>模板「IFS待发货」</td><td>BI 抓不到。IFS系统导出「发货需求」，按商品编码聚合发货数量（下载教程见模板使用说明子表）</td></tr>
 <tr><td>库龄分档（0-30/31-60/.../365+天）</td><td>模板「库龄报表」</td><td>BI 抓不到，按商品编码聚合</td></tr>
 <tr><td>入库数量（近7/14/30天）</td><td>模板「进销存报表」</td><td>BI 抓不到；或板块4按「上周在途−本周在途」推算</td></tr>
 <tr><td>运营 / 品类 / 等级 / 状态 / 产品编码</td><td>映射表（板块1下方 ASIN-运营映射表）</td><td>1,250 条权威映射；运营也可由「运营综合分析明细」运营列识别</td></tr></table>
@@ -2252,10 +2266,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDoc();
 <p><b>逻辑</b>：<b>口径</b>：SC=FBA可用+采购在途+本地；VC=PO在库+在途+海外仓+采购在途+本地。库销比6维度的含义：FBA=(FBA可用+在途)/销量；PO=(PO在库+在途)/销量；可用=(FBA可用+PO在库)/销量；离岸=全部海外库存/销量；成品=离岸+本地/销量；全链路=成品+采购在途/销量。</p>
 <h4>📈 板块3 库销比分析</h4>
 <p><b>怎么用</b>：顶部筛选栏按 搜索SKU/ASIN、品类、运营、渠道（SC/VC/双链路）、状态、等级 组合筛选；点表头可排序；📥 导出CSV。下方「SC vs VC 库销比对比」看双链路SKU两个渠道的库销比差异，差异大建议转移购物车。</p>
-<p><b>逻辑</b>：ASIN 明细表 20 列含 SC/VC 销量、5 个库销比、状态/等级。<b>判断标准</b>：可用库销比=(FBA可用+PO可用)/近30天销量，&lt;2 有断货风险、2-4 正常、4-7 需动销、&gt;7 库存积压、0 销量=沉睡。</p>
+<p><b>逻辑</b>：ASIN 明细表 20 列含 SC/VC 销量、5 个库销比、状态/等级。<b>判断标准</b>：可用库销比=(FBA可用+PO可用)/近30天销量，&lt;2 有断货风险、2-4 正常、4-7 需动销、&gt;7 库存积压、0 销量=沉睡。<b>数据来源</b>：库存=BI实时；销量=运营综合分析表；属性=映射表。</p>
 <h4>📦 板块4 库存变化</h4>
 <p><b>怎么用</b>：顶部选 运营/品类/搜索；KPI 4 卡看 FBA/PO/海外仓/本地 入库数量（=上周在途−本周在途，从在途变成在库的新入库，正=到货、负=退回/调拨）；周对比表横向=渠道（入库/在途/在库）、纵向=运营（含合计）；图表看本周入库 vs 上周在途；下方按 渠道+入库数量下限 筛选 ASIN 入库明细；📥 导出CSV。</p>
-<p><b>逻辑</b>：每周一更新数据后自动与上周一对比（SKU级周快照保留8周）。入库 ≠ 总库存增减（销售滚动会干扰），只看「从在途变成在库」的数量。</p>
+<p><b>逻辑</b>：每周一更新数据后自动与上周一对比（SKU级周快照保留8周）。<b>入库 = 上周在途 − 本周在途</b>（从在途变成在库的新入库，正=到货、负=在途净增/新发运）。入库 ≠ 总库存增减（销售滚动会干扰）。</p>
 <h4>⚠ 板块5 运营洞察（风险预警）</h4>
 <p><b>怎么用</b>：顶部 全部/SC/VC/双链路 大按钮切换渠道（SC=FBA有库存PO无；VC=PO有库存FBA无；双链路=两链路都有；断货的ASIN按历史归属）；右侧输入可用库销比区间筛选（如 0-2 看断货风险）；表头点击排序；📥 导出CSV。</p>
 <p><b>逻辑</b>：5 级预警 = 断货风险(可用库销比≤2) / 正常(2-4) / 需要动销(4-7) / 库存积压(&gt;7) / 沉睡(近30天0动销)。断货的链接或高库销的链接都要重点处理。</p>
