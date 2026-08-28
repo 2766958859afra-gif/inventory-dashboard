@@ -2374,41 +2374,68 @@ function exportBtrCSV(){
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='BTR建议提报_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 
-// ── 设置：运营个人机器人 ──
+
+// ── 设置：运营个人机器人 v2（多运营） ──
+var DASH_OPS=['向海','张紫莹','戴杨芳','尹芳','雷冰洁1','陈景','方静敏'];
+var DASH_SUBS=[['btr','BTR建议提报'],['stock0','0库存到货'],['risk','断货风险'],['age90','库龄超90天'],['ifs','IFS待发货']];
 function openSettings(){
-    document.getElementById('modalSet').style.display='flex';
-    try{
-        var s=JSON.parse(localStorage.getItem('dash_settings')||'{}');
-        if(s.webhook)document.getElementById('setWebhook').value=s.webhook;
-        document.getElementById('setFreq').value=s.freq||'off';
-        var subs=s.subs||[];
-        document.querySelectorAll('#setSubs input').forEach(function(cb){cb.checked=subs.indexOf(cb.value)>=0});
-    }catch(e){}
+    var m=document.getElementById('modalSet');if(!m)return;
+    m.style.display='flex';
+    var st={};try{st=JSON.parse(localStorage.getItem('dash_settings')||'{}')}catch(e){}
+    var ops=st.ops||{};
+    DASH_OPS.forEach(function(op){
+        var c=ops[op]||{};
+        var blk=document.querySelector('.op-set[data-op="'+op+'"]');
+        if(!blk)return;
+        blk.querySelector('.op-enable').checked=c.enabled!==false;
+        blk.querySelector('.op-webhook').value=c.webhook||'';
+        blk.querySelector('.op-wd').value=(c.weekday!==undefined?c.weekday:0);
+        blk.querySelector('.op-time').value=c.time||'09:00';
+        blk.querySelectorAll('input[type=checkbox].sub-cb').forEach(function(cb){cb.checked=(c.subs||[]).indexOf(cb.value)>=0});
+    });
+    document.getElementById('setMsg').textContent='';
 }
 function closeSettings(){document.getElementById('modalSet').style.display='none'}
-function gatherSet(){
-    var s={webhook:document.getElementById('setWebhook').value.trim(),
-        subs:[],freq:document.getElementById('setFreq').value};
-    document.querySelectorAll('#setSubs input:checked').forEach(function(cb){s.subs.push(cb.value)});
-    return s;
+function gatherOps(){
+    var ops={};
+    DASH_OPS.forEach(function(op){
+        var blk=document.querySelector('.op-set[data-op="'+op+'"]');
+        if(!blk)return;
+        var subs=[];
+        blk.querySelectorAll('.op-set input[type=checkbox].sub-cb:checked').forEach(function(cb){subs.push(cb.value)});
+        ops[op]={enabled:blk.querySelector('.op-enable').checked,
+            webhook:blk.querySelector('.op-webhook').value.trim(),
+            weekday:parseInt(blk.querySelector('.op-wd').value),
+            time:blk.querySelector('.op-time').value||'09:00',
+            subs:subs};
+    });
+    return ops;
 }
 function saveSettings(){
-    var s=gatherSet();
-    if(!s.webhook){document.getElementById('setMsg').textContent='⚠ 请填写钉钉机器人 Webhook';return}
-    localStorage.setItem('dash_settings',JSON.stringify(s));
-    fetch('http://'+location.host+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+    var ops=gatherOps();
+    var st={ops:ops,_saved:new Date().toISOString()};
+    localStorage.setItem('dash_settings',JSON.stringify(st));
+    var btn=document.getElementById('saveSetBtn');
+    btn.style.transform='scale(.96)';
+    setTimeout(function(){btn.style.transform='scale(1)'},120);
+    document.getElementById('setMsg').textContent='⏳ 保存中...';
+    fetch('http://'+location.host+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(st)})
         .then(function(r){return r.json()}).then(function(j){
-            document.getElementById('setMsg').textContent=j.ok?'✅ 已保存（'+s.freq+' '+s.subs.length+'项订阅）':'⚠ 本机保存失败';
+            document.getElementById('setMsg').textContent=j.ok?'✅ 已保存':'⚠ 本机保存失败';
         }).catch(function(){document.getElementById('setMsg').textContent='⚠ 仅本浏览器保存（本机服务未运行）'});
 }
-function testPush(){
-    var s=gatherSet();
-    if(!s.webhook){document.getElementById('setMsg').textContent='⚠ 请填写 Webhook';return}
-    document.getElementById('setMsg').textContent='发送中...';
-    fetch('http://'+location.host+'/api/push_test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+function testPushOp(op){
+    var ops=gatherOps();
+    var c=ops[op];
+    if(!c||!c.webhook){document.getElementById('setMsg').textContent='⚠ '+op+' 请先填 Webhook';return}
+    saveSettings();
+    var msg=document.querySelector('.op-set[data-op="'+op+'"] .op-msg');
+    if(msg)msg.textContent='发送中...';
+    fetch('http://'+location.host+'/api/push_test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op,webhook:c.webhook,subs:c.subs})})
         .then(function(r){return r.json()}).then(function(j){
-            document.getElementById('setMsg').textContent=j.ok?('✅ 已推送（'+j.result+'）'):('❌ '+j.error);
-        }).catch(function(){document.getElementById('setMsg').textContent='❌ 本机服务未运行'});
+            if(msg)msg.textContent=j.ok?('✅ 已推送'):('❌ '+j.error);
+            document.getElementById('setMsg').textContent='';
+        }).catch(function(){if(msg)msg.textContent='❌ 服务未运行'});
 }
 </script>
 
@@ -2472,37 +2499,118 @@ function testPush(){
 </div>
 </div></div>
 
-<!-- 设置弹窗 -->
+<!-- 设置弹窗 v2 -->
 <div class="modal-overlay" id="modalSet" onclick="if(event.target===this)closeSettings()">
-<div class="modal-box" style="max-width:560px">
+<div class="modal-box" style="max-width:640px">
 <div class="modal-head"><h2>⚙ 运营个人机器人设置</h2><button class="modal-close" onclick="closeSettings()">✕</button></div>
-<div class="modal-body" style="font-size:13px;line-height:1.8">
-<div class="fb-row"><label>钉钉机器人 Webhook</label>
-<input id="setWebhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<div class="modal-body" style="font-size:13px;line-height:1.8;max-height:60vh;overflow-y:auto">
+<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;padding:8px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
+每位运营填入自己的<b>钉钉机器人 Webhook</b>，勾选订阅内容和推送时间（<b>具体星期几+几点</b>）。每个机器人<b>只推送该运营自己的数据</b>（按运营维度过滤，不涉及他人）。苏雨晴/PHILTOP 未开放（可联系管理员）。保存后由本机定时服务推送。</div>
+<div class="op-set" data-op="向海" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">向海</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('向海')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
 </div>
-<div class="fb-row"><label>订阅提醒内容</label>
-<div id="setSubs" style="display:flex;flex-wrap:wrap;gap:6px">
-<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="btr"> BTR建议提报</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="stock0"> 0库存到货</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="risk"> 断货风险</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="age90"> 库龄超90天</label>
-<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" value="ifs"> IFS待发货</label>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="张紫莹" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">张紫莹</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('张紫莹')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="戴杨芳" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">戴杨芳</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('戴杨芳')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="尹芳" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">尹芳</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('尹芳')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="雷冰洁1" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">雷冰洁1</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('雷冰洁1')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="陈景" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">陈景</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('陈景')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
+</div></div><div class="op-set" data-op="方静敏" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<b style="font-size:13px">方静敏</b>
+<label style="font-size:11px;display:flex;align-items:center;gap:3px;color:var(--text-muted)"><input type="checkbox" class="op-enable" style="accent-color:var(--accent)"> 启用</label>
+<button class="btn-sm op-test" onclick="testPushOp('方静敏')" style="margin-left:auto;padding:2px 10px;font-size:11px">🚀 测试</button>
+</div>
+<input class="op-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." style="width:100%;padding:5px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);margin-bottom:6px">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<span style="font-size:11px;color:var(--text-muted)">推送：</span>
+<select class="op-wd" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"><option value="0">周一</option><option value="1">周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select>
+<input type="time" class="op-time" value="09:00" style="padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+<span style="font-size:11px;color:var(--text-muted)">｜ 订阅：</span>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="btr"> BTR建议提报</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="stock0"> 0库存到货</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="risk"> 断货风险</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="age90"> 库龄超90天</label><label style="display:flex;align-items:center;gap:3px;font-size:11px"><input type="checkbox" value="ifs"> IFS待发货</label></div>
+<span class="op-msg" style="font-size:11px;color:var(--text-muted)"></span>
 </div></div>
-<div class="fb-row"><label>提醒频率</label>
-<select id="setFreq" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
-<option value="off">关闭</option>
-<option value="mon">每周一 09:00</option>
-<option value="daily">每天 09:00</option>
-<option value="sun">每周日 09:00</option>
-</select>
-<span style="font-size:11px;color:var(--text-muted)"> 保存后由本机服务定时推送</span></div>
-<div style="margin-top:14px;display:flex;gap:8px">
-<button class="btn-sm" onclick="saveSettings()" style="padding:6px 16px">💾 保存设置</button>
-<button class="btn-sm" onclick="testPush()" style="padding:6px 16px">🚀 测试推送</button>
+<div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+<button id="saveSetBtn" onclick="saveSettings()" style="padding:8px 28px;font-size:13px;font-weight:600;background:var(--accent,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.35)">💾 保存全部设置</button>
 <span id="setMsg" style="font-size:12px;color:var(--text-muted)"></span>
 </div>
 <div style="font-size:11px;color:var(--text-muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:8px">
-设置保存在本机服务（内网 8768）→ 定时任务每周一/每天读取 data.json 生成摘要 → 推送到你的钉钉机器人。机器人需在钉钉群中添加，开启「自定义关键词」或加签（当前未加签）。测试推送会立即发一条。</div>
+定时任务每10分钟检查一次，到点自动推送对应运营的机器人。测试按钮立即推送一条该运营的当前摘要。</div>
 </div></div></div>
 <!-- 意见反馈弹窗 -->
 <div class="modal-overlay" id="modalFb" onclick="if(event.target===this)closeFeedback()">
