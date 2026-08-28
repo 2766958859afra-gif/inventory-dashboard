@@ -2071,7 +2071,7 @@ function handleNewDataImport(e){
                         else for(var vi=0;vi<5;vi++)vcMap[sk][vi]=Math.max(vcMap[sk][vi],rowV[vi]);
                         ct++;
                     }
-                    Object.keys(vcMap).forEach(function(sk){var v=vcMap[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_sales_30d',v[2]);if(v[3]>0)put(sk,'fba_sales_30d',v[3]);if(v[4]>0)put(sk,'po_age90',v[4])});
+                    Object.keys(vcMap).forEach(function(sk){var v=vcMap[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_sales_30d',v[2]);if(v[3]>0)put(sk,'fba_sales_30d',v[3]);if(v[4]>0)put(sk,'po_age90',v[4]);put(sk,'is_vc',1)});
                     log.push('VC库存销售汇总 ✓'+ct);
                 } else log.push('VC库存销售汇总 ✗表头未识别');
             }
@@ -2183,7 +2183,7 @@ function handleNewDataImport(e){
                 var m=map[it.sku];
                 if(!m)return;
                 cnt++;
-                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','po_age90','purchase_inbound','sales_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d','arrive_7d','arrive_14d','arrive_30d'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
+                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','po_age90','purchase_inbound','sales_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d','arrive_7d','arrive_14d','arrive_30d','is_vc'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
                 if(m.product_grade)it.product_grade=m.product_grade;
                 // 库存明细兜底：仅当BI字段缺失时
                 if(m._inv_av!==undefined&&(it.fba_avail===undefined||it.fba_avail===0))it.fba_avail=m._inv_av;
@@ -2323,8 +2323,9 @@ function renderBtr(){
         return true;
     });
     var st=btrState();
-    var T1=items.filter(function(i){return sn(i.po_avail)<20&&sn(i.overseas_avail)>20});
-    var T2=items.filter(function(i){return sn(i.po_avail)<20&&sn(i.overseas_avail)<20&&sn(i.overseas_inbound)<20});
+    var vcItems=items.filter(function(i){return i.is_vc===1||sn(i.po_avail)>0||sn(i.po_inbound)>0});
+    var T1=vcItems.filter(function(i){return sn(i.po_avail)<20&&sn(i.overseas_avail)>20});
+    var T2=vcItems.filter(function(i){return sn(i.po_avail)<20&&sn(i.overseas_avail)<20&&sn(i.overseas_inbound)<20});
     function poR(i){var s=sn(i.sales_30d);return s>0?(sn(i.po_avail)+sn(i.po_inbound))/s:0}
     function osR(i){var s=sn(i.sales_30d);return s>0?sn(i.overseas_avail)/s:0}
     function tbl(title,list,opt){
@@ -2334,7 +2335,7 @@ function renderBtr(){
         th+='</tr></thead><tbody>';
         list.forEach(function(i){
             var k=btrKey(i),s=st[k]||{};
-            th+='<tr><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td>'+(i.vc_sc||'')+'</td><td>'+(i.category||'')+'</td><td>'+(i.operator||'')+'</td>';
+            th+='<tr><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td><td>'+(i.operator||'')+'</td>';
             th+='<td class="num" style="color:var(--red);font-weight:600">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+fc(sn(i.overseas_avail))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+osR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+btrBox(i.sku)+'</td>';
@@ -2358,6 +2359,8 @@ function exportBtrCSV(){
     var lines=['\uFEFF类型,ASIN,商编,品类,运营,PO在库,PO库销比,海外仓,海外仓在途,海外仓库销比,箱规,是否不来单,备注'];
     var rows=[];
     D.items.forEach(function(i){
+        var isVc=i.is_vc===1||sn(i.po_avail)>0||sn(i.po_inbound)>0;
+        if(!isVc)return;
         if(sn(i.po_avail)<20&&sn(i.overseas_avail)>20)rows.push(['类型1',i]);
         if(sn(i.po_avail)<20&&sn(i.overseas_avail)<20&&sn(i.overseas_inbound)<20)rows.push(['类型2',i]);
     });
@@ -2365,7 +2368,7 @@ function exportBtrCSV(){
     function osR(i){var s=sn(i.sales_30d);return s>0?sn(i.overseas_avail)/s:0}
     rows.forEach(function(r){
         var i=r[1],s=st[btrKey(i)]||{};
-        lines.push([r[0],i.asin||'',i.vc_sc||'',i.category||'',i.operator||'',sn(i.po_avail),poR(i).toFixed(1),sn(i.overseas_avail),sn(i.overseas_inbound),osR(i).toFixed(1),btrBox(i.sku),s.noPo||'',s.note||''].join(','));
+        lines.push([r[0],i.asin||'',i.sku||'',i.category||'',i.operator||'',sn(i.po_avail),poR(i).toFixed(1),sn(i.overseas_avail),sn(i.overseas_inbound),osR(i).toFixed(1),btrBox(i.sku),s.noPo||'',s.note||''].join(','));
     });
     var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='BTR建议提报_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
