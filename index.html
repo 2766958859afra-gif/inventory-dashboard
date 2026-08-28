@@ -237,7 +237,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <select class="filter-select" id="fOpChange" onchange="renderChange()"><option value="">全部运营</option></select><button class="btn-sm" onclick="exportChangeCSV()">📥 导出CSV</button><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button>
 </div></div>
 <div class="page-content">
-<div class="kpi-row" id="changeKpi"></div>
+<div class="page-content"><div id="changeStock0"></div><div class="kpi-row" id="changeKpi"></div>
 <div class="channel-bar" style="margin-bottom:12px">
 <span class="channel-desc" style="max-width:none">📦 入库数量 = 上周在途 − 本周在途（从在途变成在库的新入库；负数=退回/调拨）。按渠道+数量筛选：</span>
 <select class="filter-select" id="fChArrive" onchange="renderChange()"><option value="">全部渠道</option><option>FBA</option><option>PO</option><option>海外仓</option><option>本地</option></select>
@@ -1761,101 +1761,122 @@ function renderChange(){
         if(cq&&i.category!==cq)return false;
         return true;
     });
-    // 渠道定义：入库=上周在途-本周在途；在途/在库=当前值
-    var CHS=[{k:'FBA',f:function(i){return sn(i.fba_avail)},t:function(i){return sn(i.fba_inbound)},
-              pf:function(i){var s=prevM[i.sku];return s?s.fa:null},pt:function(i){var s=prevM[i.sku];return s?s.fi:null}},
-             {k:'PO',f:function(i){return sn(i.po_avail)},t:function(i){return sn(i.po_inbound)},
-              pf:function(i){var s=prevM[i.sku];return s?s.pa:null},pt:function(i){var s=prevM[i.sku];return s?s.pi:null}},
-             {k:'海外仓',f:function(i){return sn(i.overseas_avail)},t:function(i){return sn(i.overseas_inbound)},
-              pf:function(i){var s=prevM[i.sku];return s?s.oa:null},pt:function(i){var s=prevM[i.sku];return s?s.oi:null}},
-             {k:'本地',f:function(i){return sn(i.local_avail)},t:function(i){return sn(i.purchase_inbound)},
-              pf:function(i){var s=prevM[i.sku];return s?s.lo:null},pt:function(i){var s=prevM[i.sku];return s?s.pu:null}}];
+    // 周销量（运营综合分析日维度聚合，D.week_sales）
+    var wkSales=(D.week_sales||{})[wkLabel]||{};
+    var prevWkSales=(D.week_sales||{})[wkPrev]||{};
+    function wkQ(sku){return wkSales[sku]||0}
+    function totAvail(i){return sn(i.fba_avail)+sn(i.po_avail)+sn(i.overseas_avail)+sn(i.local_avail)}
+    // 方案A到货：总在库变化 + 周销量（排除销量干扰）
+    function arrA(i){
+        var s=prevM[i.sku];
+        if(!s)return null;
+        var prevT=s.fa+s.pa+s.oa+s.lo;
+        return (totAvail(i)-prevT)+wkQ(i.sku);
+    }
+    function arrAch(i,ch){ // 渠道净到货（在途减少）
+        var s=prevM[i.sku];
+        if(!s)return null;
+        return s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch]]-ch.t(i);
+    }
+    var CHS=[{k:'FBA',f:function(i){return sn(i.fba_avail)},t:function(i){return sn(i.fba_inbound)}},
+             {k:'PO',f:function(i){return sn(i.po_avail)},t:function(i){return sn(i.po_inbound)}},
+             {k:'海外仓',f:function(i){return sn(i.overseas_avail)},t:function(i){return sn(i.overseas_inbound)}},
+             {k:'本地',f:function(i){return sn(i.local_avail)},t:function(i){return sn(i.purchase_inbound)}}];
     var hasPrev=prev&&Object.keys(prevM).length>0;
-    var fsign=function(v){return(v>=0?"+":"")+Math.round(v).toLocaleString("en-US")};
-    var fcol=function(v){return v>=0?"color:var(--green)":"color:var(--red)"};
-    // KPI 8卡：入库(正负) + 当前在途
+    var fsign=function(v){if(v===null||v===undefined)return '-';return(v>=0?"+":"")+Math.round(v).toLocaleString("en-US")};
+    var fcol=function(v){return v===null?'color:var(--text-muted)':(v>=0?"color:var(--green)":"color:var(--red)")};
+    var fc=function(v){return(v||0).toLocaleString("en-US")};
+    // ── 0库存到货统计（断货ASIN + 在途批量 + 预计回货） ──
+    var zk=items.filter(function(i){return sn(i.fba_avail)===0&&sn(i.po_avail)===0});
+    zk.forEach(function(i){
+        i._totIn=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
+        i._wkAvg=sn(i.sales_30d)/4.3;
+        i._arrA=arrA(i);
+    });
+    zk.sort(function(a,b){return b._totIn-a._totIn});
+    var zkIn=zk.reduce(function(s,i){return s+i._totIn},0);
+    var zkArr=zk.reduce(function(s,i){return s+Math.max(0,i._arrA||0)},0);
+    var zkSl=zk.reduce(function(s,i){return s+sn(i.sales_30d)},0);
+    var zh='<div class="pivot-block" style="margin-bottom:12px;border:2px solid var(--accent)">';
+    zh+='<div style="font-size:13px;font-weight:700;margin-bottom:8px">📦 0库存到货统计 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA与PO均无库存的断货ASIN，按总在途排序；到货=Δ总在库+周销量，预计回货周=总在途÷周均销量）</span></div>';
+    zh+='<div class="kpi-row" style="margin-bottom:8px">';
+    zh+='<div class="kpi-card"><div class="label">断货SKU</div><div class="value" style="color:var(--red)">'+zk.length+'</div></div>';
+    zh+='<div class="kpi-card"><div class="label">总在途</div><div class="value" style="color:var(--accent)">'+fc(zkIn)+' <span style="font-size:10px;color:var(--text-muted)">PCS</span></div></div>';
+    zh+='<div class="kpi-card"><div class="label">本周到货</div><div class="value" style="color:var(--green)">'+fsign(zkArr)+' <span style="font-size:10px;color:var(--text-muted)">PCS</span></div></div>';
+    zh+='<div class="kpi-card"><div class="label">30D销量</div><div class="value">'+fc(zkSl)+'</div></div>';
+    zh+='</div>';
+    zh+='<div class="pivot-table-wrap" style="max-height:360px"><table class="pivot-table"><thead><tr><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>FBA在途</th><th>PO在途</th><th>海外仓在途</th><th>采购在途</th><th style="border-left:2px solid var(--accent)">总在途</th><th>本周到货</th><th>30D销量</th><th>周均销量</th><th>预计回货周</th></tr></thead><tbody>';
+    zk.slice(0,300).forEach(function(i){
+        var rw=i._wkAvg>0?i._totIn/i._wkAvg:null;
+        zh+='<tr><td>'+(i.operator||'')+'</td><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td>'+(i.vc_sc||'')+'</td><td>'+(i.category||'')+'</td>';
+        zh+='<td class="num">'+fc(sn(i.fba_inbound))+'</td><td class="num">'+fc(sn(i.po_inbound))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+fc(sn(i.purchase_inbound))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent);font-weight:600;color:var(--accent)">'+fc(i._totIn)+'</td>';
+        zh+='<td class="num" style="'+fcol(i._arrA)+'">'+fsign(i._arrA)+'</td>';
+        zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td><td class="num">'+(i._wkAvg>0?i._wkAvg.toFixed(1):'0')+'</td>';
+        zh+='<td class="num" style="'+(rw!==null&&rw<=4?'color:var(--red);font-weight:600':'color:var(--text-muted)')+'">'+(rw!==null?rw.toFixed(1):'-')+'</td></tr>';
+    });
+    zh+='</tbody></table></div>';
+    if(zk.length>300)zh+='<div style="font-size:11px;color:var(--text-muted);margin-top:4px">显示前300个断货ASIN，共'+zk.length+'个</div>';
+    zh+='</div>';
+    document.getElementById("changeStock0").innerHTML=zh;
+    // ── KPI 4卡：渠道净到货（在途减少=到货）+ 在途/在库 ──
     var k="";
     CHS.forEach(function(ch){
         var cur=items.reduce(function(s,i){return s+ch.f(i)},0);
         var tcur=items.reduce(function(s,i){return s+ch.t(i)},0);
         var arr=0;
         if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
-        else if(hasPrev){items.forEach(function(i){var s=prevM[i.sku];if(s)arr+=(s[{'FBA':'fi','PO':'pi','海外仓':'oi','本地':'pu'}[ch.k]]-ch.t(i))})}
-        k+='<div class="kpi-card"><div class="label">'+ch.k+'入库</div><div class="value" style="font-size:17px;'+fcol(arr)+'">'+fsign(arr)+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
+        k+='<div class="kpi-card"><div class="label">'+ch.k+'净到货</div><div class="value" style="font-size:17px;'+fcol(arr)+'">'+fsign(arr)+' <span style="font-size:10px;color:var(--text-muted);font-weight:400">PCS</span></div>';
         k+='<div style="font-size:10px;color:var(--text-muted);border-top:1px dashed var(--border);margin-top:4px;padding-top:4px">在途 '+fc(tcur)+' · 在库 '+fc(cur)+'</div></div>';
     });
     document.getElementById("changeKpi").innerHTML=k;
-    // 周表：运营筛选 + SKU数 + 纵向=上周入库/本周入库/本周在途/本周在库，横向=4渠道
+    // ── 周表：运营 + 总到货(方案A) + 渠道在库/在途 ──
     var byOp={};
     items.forEach(function(i){
         var o=i.operator||"未分配";
-        if(!byOp[o])byOp[o]={sk:0,fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,arr:{FBA:0,PO:0,'海外仓':0,本地:0},parr:{FBA:0,PO:0,'海外仓':0,本地:0}};
+        if(!byOp[o])byOp[o]={sk:0,fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0,arrA:0,sl:0};
         var d=byOp[o];d.sk++;
         d.fa+=sn(i.fba_avail);d.fi+=sn(i.fba_inbound);d.pa+=sn(i.po_avail);d.pi+=sn(i.po_inbound);
         d.oa+=sn(i.overseas_avail);d.oi+=sn(i.overseas_inbound);d.lo+=sn(i.local_avail);d.pu+=sn(i.purchase_inbound);
-        var sf=prevM[i.sku];
-        if(sf)d.arr.FBA+=(sf.fi-sn(i.fba_inbound));
-        var s=prevM[i.sku];
-        if(s){
-            d.arr.PO+=(s.pi-sn(i.po_inbound));
-            d.arr['海外仓']+=(s.oi-sn(i.overseas_inbound));d.arr.本地+=(s.pu-sn(i.purchase_inbound));
-        }
-        var q=prevM[i.sku];
-        if(q){d.parr.FBA+=q.fi;d.parr.PO+=q.pi;d.parr['海外仓']+=q.oi;d.parr.本地+=q.pu;}
+        var a=arrA(i);
+        if(a!==null)d.arrA+=a;
+        d.sl+=wkQ(i.sku);
     });
-    // 渠道入库筛选（ASIN维度）
-    var chRows=[];
-    items.forEach(function(i){
-        CHS.forEach(function(ch){
-            var s=prevM[i.sku];
-            var arr=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]-ch.t(i)):0;
-            if(faCh&&ch.k!==faCh)return;
-            if(aMinN!==null&&arr<aMinN)return;
-            chRows.push({i:i,ch:ch.k,arr:arr,cur:ch.f(i),t:ch.t(i)});
-        });
-    });
-    // 周表渲染
     var HEAD=['FBA','海外仓','PO','本地'];
-    var sh='<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">📋 运营周对比表 <span style="color:var(--text-muted);font-weight:400;font-size:11px">（入库 = 上周在途−本周在途 · '+wkPrev+'→'+wkLabel+'）</span></div>';
-    sh+='<div class="pivot-table-wrap" style="max-height:400px"><table class="pivot-table"><thead><tr><th>运营</th><th>SKU数</th>';
-    HEAD.forEach(function(hh){sh+='<th>'+hh+'入库</th>'});
-    HEAD.forEach(function(hh){sh+='<th style="border-left:2px solid var(--accent)">'+hh+'在途</th>'});
+    var sh='<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">📋 运营周对比表 <span style="color:var(--text-muted);font-weight:400;font-size:11px">（到货=Δ总在库+周销量，排除销量干扰 · '+wkPrev+'→'+wkLabel+'）</span></div>';
+    sh+='<div class="pivot-table-wrap" style="max-height:400px"><table class="pivot-table"><thead><tr><th>运营</th><th>SKU数</th><th style="border-left:2px solid var(--accent)">总到货(方案A)</th><th>周销量</th>';
     HEAD.forEach(function(hh){sh+='<th style="border-left:2px solid var(--accent)">'+hh+'在库</th>'});
+    HEAD.forEach(function(hh){sh+='<th style="border-left:2px solid var(--accent)">'+hh+'在途</th>'});
     sh+='</tr></thead><tbody>';
     var ops=Object.keys(byOp).sort();
     ops.forEach(function(o){
         var d=byOp[o];
         sh+='<tr><td style="font-weight:600">'+o+'</td><td class="num">'+d.sk+'</td>';
-        HEAD.forEach(function(hh){
-            var v=d.arr[hh];
-            sh+='<td class="num" style="'+fcol(v)+'">'+fsign(v)+'</td>';
-        });
-        HEAD.forEach(function(hh){
-            var v=hh==='FBA'?d.fi:hh==='海外仓'?d.oi:hh==='PO'?d.pi:d.pu;
-            sh+='<td class="num" style="border-left:2px solid var(--accent);color:var(--text-muted)">'+fc(v)+'</td>';
-        });
-        HEAD.forEach(function(hh){
-            var v=hh==='FBA'?d.fa:hh==='海外仓'?d.oa:hh==='PO'?d.pa:d.lo;
-            sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>';
-        });
+        sh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(d.arrA)+';font-weight:600">'+fsign(d.arrA)+'</td>';
+        sh+='<td class="num" style="color:var(--text-muted)">'+fc(d.sl)+'</td>';
+        HEAD.forEach(function(hh){var v=hh==='FBA'?d.fa:hh==='海外仓'?d.oa:hh==='PO'?d.pa:d.lo;sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>'});
+        HEAD.forEach(function(hh){var v=hh==='FBA'?d.fi:hh==='海外仓'?d.oi:hh==='PO'?d.pi:d.pu;sh+='<td class="num" style="border-left:2px solid var(--accent);color:var(--text-muted)">'+fc(v)+'</td>'});
         sh+='</tr>';
     });
-    // 合计行
     if(ops.length>1){
-        var t={sk:items.length,arr:{FBA:0,PO:0,'海外仓':0,本地:0},fi:0,oi:0,pi:0,pu:0,fa:0,oa:0,pa:0,lo:0};
-        ops.forEach(function(o){var d=byOp[o];['FBA','PO','海外仓','本地'].forEach(function(hh){t.arr[hh]+=d.arr[hh]});t.fi+=d.fi;t.oi+=d.oi;t.pi+=d.pi;t.pu+=d.pu;t.fa+=d.fa;t.oa+=d.oa;t.pa+=d.pa;t.lo+=d.lo});
+        var t={sk:items.length,arrA:0,sl:0,fa:0,fi:0,pa:0,pi:0,oa:0,oi:0,lo:0,pu:0};
+        ops.forEach(function(o){var d=byOp[o];t.arrA+=d.arrA;t.sl+=d.sl;t.fa+=d.fa;t.fi+=d.fi;t.pa+=d.pa;t.pi+=d.pi;t.oa+=d.oa;t.oi+=d.oi;t.lo+=d.lo;t.pu+=d.pu});
         sh+='<tr class="total-row"><td>合计</td><td class="num">'+t.sk+'</td>';
-        HEAD.forEach(function(hh){sh+='<td class="num" style="'+fcol(t.arr[hh])+'">'+fsign(t.arr[hh])+'</td>'});
-        HEAD.forEach(function(hh){var v=hh==='FBA'?t.fi:hh==='海外仓'?t.oi:hh==='PO'?t.pi:t.pu;sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>'});
+        sh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(t.arrA)+';font-weight:600">'+fsign(t.arrA)+'</td>';
+        sh+='<td class="num" style="color:var(--text-muted)">'+fc(t.sl)+'</td>';
         HEAD.forEach(function(hh){var v=hh==='FBA'?t.fa:hh==='海外仓'?t.oa:hh==='PO'?t.pa:t.lo;sh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(v)+'</td>'});
+        HEAD.forEach(function(hh){var v=hh==='FBA'?t.fi:hh==='海外仓'?t.oi:hh==='PO'?t.pi:t.pu;sh+='<td class="num" style="border-left:2px solid var(--accent);color:var(--text-muted)">'+fc(v)+'</td>'});
         sh+='</tr>';
     }
     sh+='</tbody></table></div></div>';
     document.getElementById("changeSummary").innerHTML=sh;
-    // 图表：本周入库（上周在途−本周在途）× 4渠道，灰色=上周在途参考
+    // 图表：方案A总到货 + 渠道净到货（4渠道）
     var chAgg={FBA:{cur:0,prev:0},PO:{cur:0,prev:0},'海外仓':{cur:0,prev:0},本地:{cur:0,prev:0}};
+    var totA=0;
     items.forEach(function(i){
         var s=prevM[i.sku];
+        var a=arrA(i);
+        if(a!==null)totA+=a;
         CHS.forEach(function(ch){
             var q=s?({'FBA':s.fi,'PO':s.pi,'海外仓':s.oi,'本地':s.pu}[ch.k]):0;
             chAgg[ch.k].cur+=q-ch.t(i);
@@ -1867,9 +1888,9 @@ function renderChange(){
         data: {
             labels: ['FBA', '海外仓', 'PO', '本地'],
             datasets: [
-                {label: wkPrev + '在途(参考)', data: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].prev}), backgroundColor: 'rgba(148,163,184,.5)', borderRadius: 4},
-                {label: wkLabel + '入库', data: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),
-                 backgroundColor: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur >= 0 ? 'rgba(37,99,235,.8)' : 'rgba(220,38,38,.8)'}), borderRadius: 4}
+                {label: wkLabel + '渠道净到货(在途减少)', data: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur}),
+                 backgroundColor: ['FBA','海外仓','PO','本地'].map(function(k){return chAgg[k].cur >= 0 ? 'rgba(37,99,235,.8)' : 'rgba(220,38,38,.8)'}), borderRadius: 4},
+                {label: '总到货(方案A:Δ在库+周销量)', data: ['FBA','海外仓','PO','本地'].map(function(k){return k==='FBA'?totA:0}), backgroundColor: 'rgba(22,163,74,.7)', borderRadius: 4}
             ]
         },
         options: {
@@ -1881,19 +1902,37 @@ function renderChange(){
             scales: {y: {beginAtZero: false, grid: {color: 'rgba(0,0,0,.06)'}}}
         }
     });
-// ASIN 明细（渠道入库 + 当前值，支持渠道/数量筛选）
-    var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度入库明细（'+chRows.length+'条'+(faCh||aMinN!==null?' · 已按'+(faCh||'')+(aMinN!==null?'入库≥'+aMinN:'')+'筛选':'')+'）</div>';
+    // ── ASIN 明细：方案A总到货（每ASIN一行）+ 渠道筛选 ──
+    var chRows=[];
+    items.forEach(function(i){
+        var arr=arrA(i);
+        if(aMinN!==null&&(arr===null||arr<aMinN))return;
+        // 渠道筛选：faCh 时筛选该渠道净到货
+        if(faCh){
+            var ca=arrAch(i,faCh);
+            if(ca===null||(aMinN!==null&&ca<aMinN))return;
+        }
+        chRows.push(i);
+    });
+    var dh='<div style="font-size:12px;font-weight:700;margin:14px 0 8px">📋 ASIN 维度到货明细（'+chRows.length+'条 · 到货=Δ总在库+周销量'+(faCh||aMinN!==null?' · 已按'+(faCh||'')+(aMinN!==null?'到货≥'+aMinN:'')+'筛选':'')+'）</div>';
     dh+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
-    dh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>渠道</th>';
-    dh+='<th>入库数量</th><th>在库剩余</th><th>在途剩余</th>';
+    dh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th>';
+    dh+='<th style="border-left:2px solid var(--accent)">到货(方案A)</th><th>周销量</th><th>总在库</th><th>总在途</th>';
+    HEAD.forEach(function(hh){dh+='<th style="border-left:2px solid var(--accent)">Δ'+hh+'在库</th>'});
     dh+='</tr></thead><tbody>';
-    var disp=chRows.slice(0,400);
-    disp.forEach(function(r){
-        var a=r.i;
-        dh+='<tr><td>'+(a.operator||'')+'</td><td><a href="https://www.amazon.com/dp/'+a.asin+'" target="_blank">'+a.asin+'</a></td><td>'+(a.vc_sc||'')+'</td><td>'+(a.category||'')+'</td>';
-        dh+='<td>'+(r.ch==='FBA'?'<span class="badge badge-blue">FBA</span>':r.ch==='PO'?'<span class="badge badge-red">PO</span>':r.ch==='海外仓'?'<span class="badge badge-green">海外仓</span>':'<span class="badge badge-purple">本地</span>')+'</td>';
-        dh+='<td class="num" style="'+fcol(r.arr)+';font-weight:600">'+fsign(r.arr)+'</td>';
-        dh+='<td class="num">'+fc(r.cur)+'</td><td class="num" style="color:var(--text-muted)">'+fc(r.t)+'</td></tr>';
+    chRows.slice(0,400).forEach(function(i){
+        var arr=arrA(i);
+        var totT=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
+        var s=prevM[i.sku];
+        var dFBA=sn(i.fba_avail)-(s?s.fa:0), dPO=sn(i.po_avail)-(s?s.pa:0), dOS=sn(i.overseas_avail)-(s?s.oa:0), dLO=sn(i.local_avail)-(s?s.lo:0);
+        dh+='<tr><td>'+(i.operator||'')+'</td><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td>'+(i.vc_sc||'')+'</td><td>'+(i.category||'')+'</td>';
+        dh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(arr)+';font-weight:600">'+fsign(arr)+'</td>';
+        dh+='<td class="num" style="color:var(--text-muted)">'+fc(wkQ(i.sku))+'</td>';
+        dh+='<td class="num">'+fc(totAvail(i))+'</td><td class="num" style="color:var(--text-muted)">'+fc(totT)+'</td>';
+        dh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(dFBA)+'">'+fsign(dFBA)+'</td>';
+        dh+='<td class="num" style="'+fcol(dPO)+'">'+fsign(dPO)+'</td>';
+        dh+='<td class="num" style="'+fcol(dOS)+'">'+fsign(dOS)+'</td>';
+        dh+='<td class="num" style="'+fcol(dLO)+'">'+fsign(dLO)+'</td></tr>';
     });
     dh+='</tbody></table></div>';if(chRows.length>400)dh+='<div style="font-size:11px;color:var(--text-muted)">显示前400条，共'+chRows.length+'条</div>';
     document.getElementById("changeDetail").innerHTML=dh;
@@ -1906,16 +1945,17 @@ function clearArriveFilter(){document.getElementById('fChArrive').value='';docum
 function exportChangeCSV(){
     if(!D||!D.items)return;
     var ws=D.week_snapshots||{},wks=Object.keys(ws).sort();
-    var prev=wks.length>1?ws[wks[wks.length-2]]:null,now=wks.length?ws[wks[wks.length-1]]:null;
+    var wkLabel=wks.length?wks[wks.length-1]:'本周';
+    var wkSales=(D.week_sales||{})[wkLabel]||{};
     function idx(snap){var m={};if(!snap||!snap.items)return m;snap.items.forEach(function(a){if(a&&a[0])m[a[0]]={fa:a[1],fi:a[2],pa:a[3],pi:a[4],oa:a[5],oi:a[6],lo:a[7],pu:a[8]}});return m}
-    var prevM=idx(prev),nowM=idx(now);
-    var lines=['\uFEFF运营,ASIN,商编,品类,渠道,入库数量,在库剩余,在途剩余'];
+    var prevM=idx(wks.length>1?ws[wks[wks.length-2]]:null);
+    var lines=['\uFEFF运营,ASIN,商编,品类,到货(方案A),周销量,总在库,总在途,FBA在途,PO在途,海外仓在途,采购在途'];
     D.items.forEach(function(i){
         var s=prevM[i.sku];
-        [['FBA','fi',sn(i.fba_inbound),sn(i.fba_avail)],['PO','pi',sn(i.po_inbound),sn(i.po_avail)],['海外仓','oi',sn(i.overseas_inbound),sn(i.overseas_avail)],['本地','pu',sn(i.purchase_inbound),sn(i.local_avail)]].forEach(function(c){
-            var arr=s?(s[c[1]]-c[2]):0;
-            lines.push([i.operator||'',i.asin||'',i.vc_sc||'',i.category||'',c[0],Math.round(arr),Math.round(c[3]),Math.round(c[2])].join(','));
-        });
+        var totA=0;
+        if(s){var prevT=s.fa+s.pa+s.oa+s.lo;var curT=sn(i.fba_avail)+sn(i.po_avail)+sn(i.overseas_avail)+sn(i.local_avail);totA=(curT-prevT)+(wkSales[i.sku]||0)}
+        var totT=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
+        lines.push([i.operator||'',i.asin||'',i.vc_sc||'',i.category||'',Math.round(totA),Math.round(wkSales[i.sku]||0),Math.round(sn(i.fba_avail)+sn(i.po_avail)+sn(i.overseas_avail)+sn(i.local_avail)),Math.round(totT),Math.round(sn(i.fba_inbound)),Math.round(sn(i.po_inbound)),Math.round(sn(i.overseas_inbound)),Math.round(sn(i.purchase_inbound))].join(','));
     });
     var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='库存变化_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
@@ -2049,8 +2089,21 @@ function handleNewDataImport(e){
                         cQ=colOf(rs,hr,['出库销量']),cAmt=colOf(rs,hr,['出库销售额']),
                         cGM=colOf(rs,hr,['毛利率']),cFlow=colOf(rs,hr,['流量']),cCvr=colOf(rs,hr,['转化率']),
                         cAdv=colOf(rs,hr,['广告花费']);
-                    D.opMonthly=D.opMonthly||{};var curOp='',ct=0,salesAgg={};
+                    D.opMonthly=D.opMonthly||{};var curOp='',ct=0,salesAgg={},weekSales={};
                     var OPS=['向海','张紫莹','戴杨芳','尹芳','雷冰洁','雷冰洁1','陈景','方静敏','苏雨晴','PHILTOP'];
+                    // 日期列（日维度）→ ISO周号
+                    var cDate=colOf(rs,hr,['日期']);
+                    function isoWeek(ds){
+                        if(!ds)return '';
+                        var p=String(ds).split(/[-\/\s]/).map(Number);
+                        if(p.length<3||!p[0]||!p[1]||!p[2])return '';
+                        var dt=new Date(p[0],p[1]-1,p[2]);
+                        var day=(dt.getDay()+6)%7;
+                        dt.setDate(dt.getDate()-day+3);
+                        var first=new Date(dt.getFullYear(),0,1);
+                        var wn=Math.ceil(((dt-first)/86400000+first.getDay()+1)/7);
+                        return dt.getFullYear()+'-W'+String(wn).padStart(2,'0');
+                    }
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r];
                         var opCell=String(rw[0]||'').trim();
@@ -2061,6 +2114,11 @@ function handleNewDataImport(e){
                         var q=Number(rw[cQ])||0;
                         // 销量聚合（按sku）
                         if(sku&&q>0){salesAgg[sku]=(salesAgg[sku]||0)+q}
+                        // 周销量聚合（日维度→自然周）
+                        if(sku&&q>0&&cDate>=0){
+                            var wk=isoWeek(rw[cDate]);
+                            if(wk){if(!weekSales[wk])weekSales[wk]={};weekSales[wk][sku]=(weekSales[wk][sku]||0)+q}
+                        }
                         if(!D.opMonthly[a])D.opMonthly[a]={};
                         var o=D.opMonthly[a];
                         if(curOp)o.operator=curOp;
@@ -2075,7 +2133,9 @@ function handleNewDataImport(e){
                     }
                     // 销量覆盖 items（仅覆盖表里有的SKU）
                     Object.keys(salesAgg).forEach(function(sk){put(sk,'sales_30d',salesAgg[sk])});
-                    log.push('运营综合分析 ✓'+ct+'（销量按SKU聚合）');
+                    D.week_sales=D.week_sales||{};
+                    Object.keys(weekSales).forEach(function(wk){D.week_sales[wk]=weekSales[wk]});
+                    log.push('运营综合分析 ✓'+ct+'（周销量: '+Object.keys(weekSales).join(',')+'）');
                 } else log.push('运营综合分析 ✗表头未识别');
             }
             // ── 6. IFS待发货（发货需求按商品编码聚合） ──
