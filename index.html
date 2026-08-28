@@ -254,18 +254,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <select class="filter-select" id="fOpChange" onchange="renderChange()"><option value="">全部运营</option></select><button class="btn-sm" onclick="exportChangeCSV()">📥 导出CSV</button><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button>
 </div></div>
 <div class="page-content">
-<div class="page-content"><div id="changeStock0"></div><div class="kpi-row" id="changeKpi"></div>
-<div class="channel-bar" style="margin-bottom:12px">
-<span class="channel-desc" style="max-width:none">📦 纯滚入 = 本周在库 − 上周在库 + 实销（排除销量干扰的到货）。下方筛选按 Δ渠道在库：</span>
+<div id="changeStock0"></div>
+<div class="kpi-row" id="changeKpi"></div>
+<div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道周对比</h2><div class="chart-wrap" style="height:300px"><canvas id="changeChart"></canvas></div></div>
+<div id="changeSummary"></div>
+<div class="channel-bar" style="margin:14px 0 8px">
+<span class="channel-desc" style="max-width:none">📋 ASIN 明细筛选 · 按 Δ渠道在库 + 数量下限：</span>
 <select class="filter-select" id="fChArrive" onchange="renderChange()"><option value="">全部渠道</option><option>FBA</option><option>PO</option><option>海外仓</option><option>本地</option></select>
-<input id="arriveMin" type="number" placeholder="入库≥" style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card-bg);color:var(--text)">
+<input id="arriveMin" type="number" placeholder="Δ在库≥" style="width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card-bg);color:var(--text)">
 <button class="btn-sm" onclick="applyArriveFilter()">筛选</button>
 <button class="btn-sm" onclick="clearArriveFilter()">✕</button>
 </div>
-<div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道入库对比（本周 vs 上周 · 随运营/品类筛选联动）</h2><div class="chart-wrap" style="height:280px"><canvas id="changeChart"></canvas></div></div>
-<div id="changeSummary"></div>
 <div style="margin-top:10px"><div id="changeDetail"></div></div>
-</div></div>
+</div>
 
 </div>
 
@@ -1792,9 +1793,10 @@ function renderChange(){
     function saleOf(i,k){ // 实销：周销量优先，无则近30天
         return k==='FBA'?sn(i.fba_sales_30d):sn(i.po_sales_30d);
     }
-    function pureIn(i,k){ // 纯滚入 = Δ在库 + 实销
+    function pureIn(i,k){ // 纯滚入 = max(0, Δ在库 + 实销)：负数=消耗大于到货，纯滚入记 0
         var p=prevAv(i,k);if(p===null)return null;
-        return (curAv(i,k)-p)+saleOf(i,k);
+        var v=(curAv(i,k)-p)+saleOf(i,k);
+        return v>0?v:0;
     }
     var CHS=['FBA','PO','海外仓','本地'];
     // ── 0库存到货统计（断货ASIN + 在途批量 + 预计回货） ──
@@ -1808,28 +1810,35 @@ function renderChange(){
     var zkIn=zk.reduce(function(s,i){return s+i._totIn},0);
     var zkArr=zk.reduce(function(s,i){return s+Math.max(0,i._arrA||0)},0);
     var zkSl=zk.reduce(function(s,i){return s+sn(i.sales_30d)},0);
-    var zh='<div class="pivot-block" style="margin-bottom:12px;border:2px solid var(--accent)">';
-    zh+='<div style="font-size:13px;font-weight:700;margin-bottom:8px">📦 0库存到货统计 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA与PO均无库存的断货ASIN，按总在途排序；预计回货周=总在途÷周均销量）</span></div>';
-    zh+='<div class="kpi-row" style="margin-bottom:8px">';
-    zh+='<div class="kpi-card"><div class="label">断货SKU</div><div class="value" style="color:var(--red)">'+zk.length+'</div></div>';
-    zh+='<div class="kpi-card"><div class="label">总在途</div><div class="value" style="color:var(--accent)">'+fc(zkIn)+' <span style="font-size:10px;color:var(--text-muted)">PCS</span></div></div>';
-    zh+='<div class="kpi-card"><div class="label">本周到货</div><div class="value" style="color:var(--green)">'+fsign(zkArr)+' <span style="font-size:10px;color:var(--text-muted)">PCS</span></div></div>';
-    zh+='<div class="kpi-card"><div class="label">30D销量</div><div class="value">'+fc(zkSl)+'</div></div>';
+        var zh='<div class="pivot-block" style="margin-bottom:14px;border:2px solid var(--accent);border-radius:10px">';
+    zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 8px">📦 0库存到货统计 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA与PO均无库存的断货ASIN · 本周到货 = max(0, Δ在库+实销) · 按总在途排序）</span></div>';
+    zh+='<div class="kpi-row" style="margin:0 14px 10px">';
+    zh+='<div class="kpi-card"><div class="label">断货SKU</div><div class="value" style="color:var(--red);font-size:24px">'+zk.length+'</div></div>';
+    zh+='<div class="kpi-card"><div class="label">总在途</div><div class="value" style="color:var(--accent);font-size:24px">'+fc(zkIn)+'</div></div>';
+    zh+='<div class="kpi-card"><div class="label">本周总到货</div><div class="value" style="color:var(--green);font-size:24px">'+fsign(zkArr)+'</div></div>';
+    zh+='<div class="kpi-card"><div class="label">30D销量合计</div><div class="value" style="font-size:24px">'+fc(zkSl)+'</div></div>';
     zh+='</div>';
-    zh+='<div class="pivot-table-wrap" style="max-height:360px"><table class="pivot-table"><thead><tr><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>FBA在途</th><th>PO在途</th><th>海外仓在途</th><th>采购在途</th><th style="border-left:2px solid var(--accent)">总在途</th><th>本周到货</th><th>30D销量</th><th>周均销量</th><th>预计回货周</th></tr></thead><tbody>';
+    zh+='<div class="pivot-table-wrap" style="max-height:420px"><table class="pivot-table"><thead><tr>';
+    zh+='<th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th>30D销量</th>';
+    zh+='<th style="border-left:2px solid var(--accent)">FBA可用</th><th>FBA在途</th><th>FBA本周到货</th>';
+    zh+='<th style="border-left:2px solid var(--accent)">PO可用</th><th>PO在途</th><th>PO本周到货</th>';
+    zh+='<th style="border-left:2px solid var(--accent)">海外仓可用</th><th>海外仓在途</th><th>海外仓本周到货</th>';
+    zh+='<th style="border-left:2px solid var(--accent)">本地可用</th><th>采购在途</th><th>本地本周到货</th>';
+    zh+='<th style="border-left:2px solid var(--accent)">总在途</th></tr></thead><tbody>';
     zk.slice(0,300).forEach(function(i){
-        var rw=i._wkAvg>0?i._totIn/i._wkAvg:null;
+        function wkArr(k){var p=prevM[i.sku];if(!p)return null;var d=curAv(i,k)-prevAv(i,k)+saleOf(i,k);return d>0?d:0}
         zh+='<tr><td>'+(i.operator||'')+'</td><td>'+(i.asin?'<a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a>':'<span style="color:var(--text-muted)">—</span>')+'</td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td>';
-        zh+='<td class="num">'+fc(sn(i.fba_inbound))+'</td><td class="num">'+fc(sn(i.po_inbound))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+fc(sn(i.purchase_inbound))+'</td>';
-        zh+='<td class="num" style="border-left:2px solid var(--accent);font-weight:600;color:var(--accent)">'+fc(i._totIn)+'</td>';
-        zh+='<td class="num" style="'+fcol(i._arrA)+'">'+fsign(i._arrA)+'</td>';
-        zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td><td class="num">'+(i._wkAvg>0?i._wkAvg.toFixed(1):'0')+'</td>';
-        zh+='<td class="num" style="'+(rw!==null&&rw<=4?'color:var(--red);font-weight:600':'color:var(--text-muted)')+'">'+(rw!==null?rw.toFixed(1):'-')+'</td></tr>';
+        zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(sn(i.fba_avail))+'</td><td class="num">'+fc(sn(i.fba_inbound))+'</td><td class="num" style="'+fcol(wkArr('FBA'))+'">'+fsign(wkArr('FBA'))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(sn(i.po_avail))+'</td><td class="num">'+fc(sn(i.po_inbound))+'</td><td class="num" style="'+fcol(wkArr('PO'))+'">'+fsign(wkArr('PO'))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(sn(i.overseas_avail))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num" style="'+fcol(wkArr('海外仓'))+'">'+fsign(wkArr('海外仓'))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(sn(i.local_avail))+'</td><td class="num">'+fc(sn(i.purchase_inbound))+'</td><td class="num" style="'+fcol(wkArr('本地'))+'">'+fsign(wkArr('本地'))+'</td>';
+        zh+='<td class="num" style="border-left:2px solid var(--accent);font-weight:600;color:var(--accent)">'+fc(i._totIn)+'</td></tr>';
     });
     zh+='</tbody></table></div>';
-    if(zk.length>300)zh+='<div style="font-size:11px;color:var(--text-muted);margin-top:4px">显示前300个断货ASIN，共'+zk.length+'个</div>';
+    if(zk.length>300)zh+='<div style="font-size:11px;color:var(--text-muted);margin:4px 14px">显示前300个断货ASIN，共'+zk.length+'个</div>';
     zh+='</div>';
-    document.getElementById("changeStock0").innerHTML=zh;
+document.getElementById("changeStock0").innerHTML=zh;
     // ── KPI 渠道×指标表：W33在库/W34在库/新增到货/消耗·发走 ──
     var agg={};
     CHS.forEach(function(k){agg[k]={a0:0,a1:0,pure:0,cons:0,cur:0}});
@@ -1844,18 +1853,21 @@ function renderChange(){
             if(k==='FBA'||k==='PO')a.cons+=saleOf(i,k);
         });
     });
-    var kh='<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">📊 渠道周对比 <span style="color:var(--text-muted);font-weight:400;font-size:11px">（到货/采购 = 本周在库−上周在库+实销；海外仓/本地无销售，只展示净变化）</span></div>';
-    kh+='<div class="pivot-table-wrap"><table class="pivot-table"><thead><tr><th>渠道</th><th>'+wkPrev+'在库</th><th>'+wkLabel+'在库</th><th style="border-left:2px solid var(--accent)">新增到货</th><th>消耗/发走</th><th>在库Δ</th></tr></thead><tbody>';
+        var kh='<div class="pivot-block" style="margin-bottom:14px">';
+    kh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 6px">📊 渠道周对比 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（本周到货 = max(0, 本周在库−上周在库+实销)；海外仓/本地无销售，到货=在库净增）</span></div>';
+    kh+='<div class="pivot-table-wrap"><table class="pivot-table" style="min-width:720px"><thead><tr>';
+    kh+='<th style="font-size:13px;padding:12px 14px">渠道</th><th style="font-size:13px;padding:12px 14px">'+wkPrev+'在库</th><th style="font-size:13px;padding:12px 14px">'+wkLabel+'在库</th>';
+    kh+='<th style="border-left:2px solid var(--accent);font-size:13px;padding:12px 14px">本周到货</th><th style="font-size:13px;padding:12px 14px">消耗/发走</th><th style="font-size:13px;padding:12px 14px">在库Δ</th></tr></thead><tbody>';
     CHS.forEach(function(k){
         var a=agg[k];
         var delta=a.a1-a.a0;
-        kh+='<tr><td style="font-weight:600">'+k+'</td><td class="num">'+fc(a.a0)+'</td><td class="num">'+fc(a.a1)+'</td>';
-        kh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(a.pure)+';font-weight:600">'+fsign(a.pure)+'</td>';
-        kh+='<td class="num">'+(k==='FBA'||k==='PO'?fc(a.cons):'<span style="color:var(--text-muted)">—</span>')+'</td>';
-        kh+='<td class="num" style="'+fcol(delta)+'">'+fsign(delta)+'</td></tr>';
+        kh+='<tr><td style="font-weight:700;font-size:15px;padding:14px">'+k+'</td><td class="num" style="font-size:16px;padding:14px">'+fc(a.a0)+'</td><td class="num" style="font-size:16px;padding:14px;font-weight:600">'+fc(a.a1)+'</td>';
+        kh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(a.pure)+';font-weight:700;font-size:18px;padding:14px">'+fsign(a.pure)+'</td>';
+        kh+='<td class="num" style="font-size:14px;padding:14px">'+(k==='FBA'||k==='PO'?fc(a.cons):'<span style="color:var(--text-muted)">—</span>')+'</td>';
+        kh+='<td class="num" style="'+fcol(delta)+';font-size:14px;padding:14px">'+fsign(delta)+'</td></tr>';
     });
     kh+='</tbody></table></div></div>';
-    document.getElementById("changeKpi").innerHTML=kh;
+document.getElementById("changeKpi").innerHTML=kh;
     // ── 图表：渠道×指标 分组柱状（W33/W34在库 + 到货 + 消耗） ──
     mkChart("changeChart", {
         type: 'bar',
