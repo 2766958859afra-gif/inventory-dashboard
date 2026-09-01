@@ -2126,7 +2126,7 @@ function handleNewDataImport(e){
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r];
                         var opCell=String(rw[0]||'').trim();
-                        if(opCell&&OPS.indexOf(opCell)>=0){curOp=opCell;continue}
+                        if(opCell&&OPS.indexOf(opCell)>=0&&cA>=0&&String(rw[cA]||'').trim()===''){curOp=opCell;continue}
                         var a=String(rw[cA]||'').trim();
                         if(!a||a==='合计')continue;
                         var sku=String(rw[cSku]||'').trim();
@@ -2154,6 +2154,18 @@ function handleNewDataImport(e){
                     Object.keys(salesAgg).forEach(function(sk){put(sk,'sales_30d',salesAgg[sk])});
                     D.week_sales=D.week_sales||{};
                     Object.keys(weekSales).forEach(function(wk){D.week_sales[wk]=weekSales[wk]});
+                    // ASIN/sku → 运营 自动归属（用板块1下方 ASIN-运营映射表，谁导出的表都自动识别）
+                    if(typeof EMBED_MAPPING!=='undefined'&&EMBED_MAPPING&&EMBED_MAPPING.data){
+                        var opMap2={},asMap2={};
+                        EMBED_MAPPING.data.forEach(function(r){if(r[0]&&r[10]){opMap2[r[0]]=r[10];if(r[1])asMap2[r[1]]=r[10]}});
+                        var opFixed=0;
+                        D.items.forEach(function(it){
+                            if(it.operator)return;
+                            var op=opMap2[it.sku]||asMap2[it.asin];
+                            if(op){it.operator=op;opFixed++}
+                        });
+                        if(opFixed)log.push('运营自动归属 ✓'+opFixed);
+                    }
                     log.push('运营综合分析 ✓'+ct+'（周销量: '+Object.keys(weekSales).join(',')+'）');
                 } else log.push('运营综合分析 ✗表头未识别');
             }
@@ -2500,7 +2512,7 @@ document.addEventListener('click',function(e){
 <p><b>怎么用</b></p>
 <ul>
 <li>① 点顶部「导入数据（总表）」展开 → 下载「库存看板数据-模板.xlsx」</li>
-<li>② 组长把系统下载的 <b>6 个表</b>去表头行后粘贴到模板对应子表（进销存报表/运营综合分析明细/VC库存销售汇总/库存明细报表/库龄报表/IFS待发货）</li>
+<li>② 下载系统报表 <b>2 个表</b>去表头行后粘贴到模板对应子表（IFS待发货 / 运营综合分析明细）——<b>谁导出的表都能导入，看板按 ASIN-运营映射表自动归属运营</b>（当前仅有向海的销量导出权限就先导自己的，拿到全量后继续导入即可）</li>
 <li>③ 保存后点「选择文件」上传 → 看导入日志确认每个子表解析行数</li>
 <li>④ 右上角切换数据源（FBA/PO/海外仓/本地）并导出CSV</li>
 </ul>
