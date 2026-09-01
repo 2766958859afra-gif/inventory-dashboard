@@ -276,7 +276,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div id="changeStock0"></div>
 <div id="changeKpi" style="display:none"></div>
 <div id="changeChannels"></div>
-<div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道周对比</h2><div class="chart-wrap" style="height:300px"><canvas id="changeChart"></canvas></div></div>
+<div class="chart-area" style="margin-bottom:12px"><h2>📊 渠道周对比</h2><div class="chart-wrap" style="min-height:260px"><canvas id="changeChart"></canvas></div></div>
 <div id="changeSummary"></div>
 <div class="channel-bar" style="margin:14px 0 8px">
 <span class="channel-desc" style="max-width:none">📋 ASIN 明细筛选 · 按 Δ渠道在库 + 数量下限：</span>
@@ -1915,28 +1915,27 @@ document.getElementById("changeStock0").innerHTML=zh;
     kh+='</tbody></table></div></div>';
 document.getElementById("changeChannels").innerHTML=kh;
     // ── 图表：渠道×指标 分组柱状（W33/W34在库 + 到货 + 消耗） ──
-            // ── 图表：渠道周对比（横向条形图，直观显示数据） ──
-    mkChart("changeChart", {
-        type: 'bar',
-        data: {
-            labels: CHS,
-            datasets: [
-                {label: wkPrev + '在库', data: CHS.map(function(k){return agg[k].a0}), backgroundColor: 'rgba(148,163,184,.55)', borderRadius: 4},
-                {label: wkLabel + '在库', data: CHS.map(function(k){return agg[k].a1}), backgroundColor: 'rgba(37,99,235,.7)', borderRadius: 4},
-                {label: '本周到货', data: CHS.map(function(k){return agg[k].pure}), backgroundColor: CHS.map(function(k){return agg[k].pure>=0?'rgba(22,163,74,.75)':'rgba(220,38,38,.75)'}), borderRadius: 4},
-                {label: '消耗/发走', data: CHS.map(function(k){return agg[k].cons}), backgroundColor: 'rgba(245,158,11,.6)', borderRadius: 4}
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: {position: 'bottom'},
-                tooltip: {callbacks: {label: function(c){ return c.dataset.label + ': ' + c.raw.toLocaleString() + ' PCS'; }}}
-            },
-            scales: {x: {grid: {color: 'rgba(0,0,0,.06)'}, ticks: {callback: function(v){ return v.toLocaleString(); }}}}
-        }
+                // ── 图表：本周到货（纯入库）HTML 条形图，粗条 + 数值标签 ──
+    var maxP = Math.max.apply(null, CHS.map(function(k){return agg[k].pure}))||1;
+    var barCols = ['#3559c7', '#2c855b', '#16857a', '#8899cc'];
+    var chh = '<div style="padding:10px 4px">';
+    chh += '<div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text)">📥 本周到货（纯入库）<span style="font-weight:400;color:var(--text-muted);font-size:11px">= 本周在库 − 上周在库 + 实销（消耗已扣除，负数钳制 0）</span></div>';
+    CHS.forEach(function(k, idx){
+        var v = agg[k].pure;
+        var pct = v > 0 ? Math.max(3, Math.round(v / maxP * 100)) : 0;
+        var col = barCols[idx % barCols.length];
+        chh += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">';
+        chh += '<div style="width:58px;font-weight:700;font-size:13px;color:var(--text)">' + k + '</div>';
+        chh += '<div style="flex:1;height:30px;background:rgba(0,0,0,.05);border-radius:7px;overflow:hidden">';
+        chh += '<div style="width:' + pct + '%;height:100%;background:' + col + ';border-radius:7px;transition:.3s"></div>';
+        chh += '</div>';
+        chh += '<div style="width:150px;text-align:right;font-weight:800;font-size:16px;color:' + (v > 0 ? col : 'var(--text-muted)') + '">' + fsign(v) + ' <span style="font-size:10px;font-weight:400;color:var(--text-muted)">PCS</span></div>';
+        chh += '</div>';
     });
+    chh += '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">纯入库 = 本周在库 − 上周在库 + 实销（把卖掉的加回来，只看货到了多少；负数=消耗大于到货，记 0）</div>';
+    chh += '</div>';
+    var cc = document.getElementById("changeChart");
+    if (cc) cc.outerHTML = '<div id="changeChart" style="padding:4px 6px">' + chh + '</div>';
 // ── 运营维度统计：每运营 FBA/PO纯滚入 + 在库Δ + 在途Δ ──
     var byOp={};
     items.forEach(function(i){
