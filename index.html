@@ -2154,7 +2154,7 @@ function handleNewDataImport(e){
                 var hr=findHdr(rs,['商品编码','PO在库','VC近30天销量']);
                 if(hr>=0){
                     var cS=colOf(rs,hr,['商品编码']),cPa=colOf(rs,hr,['PO在库']),
-                        cPi=colOf(rs,hr,['PO在途_VC后台','PO在途']),cSl=colOf(rs,hr,['VC近30天销量']),
+                        cPi=colOf(rs,hr,['PO在途_VC后台','PO在途']),cPoOms=colOf(rs,hr,['PO在途_OMS']),cSl=colOf(rs,hr,['VC近30天销量']),
                         cSf=colOf(rs,hr,['SC近30天销量']),cFa=colOf(rs,hr,['FBA在库']),
                         cFi=colOf(rs,hr,['FBA在途']),cOa=colOf(rs,hr,['海外仓在库']),
                         cOi=colOf(rs,hr,['海外仓在途']),cAge=colOf(rs,hr,['库龄超90天PO']);
@@ -2162,12 +2162,12 @@ function handleNewDataImport(e){
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
-                        var rowV=[Number(rw[cPa])||0,Number(rw[cPi])||0,Number(rw[cSl])||0,Number(rw[cSf])||0,Number(rw[cAge])||0];
+                        var rowV=[Number(rw[cPa])||0,Number(rw[cPi])||0,Number(rw[cPoOms])||0,Number(rw[cSl])||0,Number(rw[cSf])||0,Number(rw[cAge])||0];
                         if(!vcMap[sk])vcMap[sk]=rowV.slice();
-                        else for(var vi=0;vi<5;vi++)vcMap[sk][vi]=Math.max(vcMap[sk][vi],rowV[vi]);
+                        else for(var vi=0;vi<6;vi++)vcMap[sk][vi]=Math.max(vcMap[sk][vi],rowV[vi]);
                         ct++;
                     }
-                    Object.keys(vcMap).forEach(function(sk){var v=vcMap[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_sales_30d',v[2]);if(v[3]>0)put(sk,'fba_sales_30d',v[3]);if(v[4]>0)put(sk,'po_age90',v[4]);put(sk,'is_vc',1)});
+                    Object.keys(vcMap).forEach(function(sk){var v=vcMap[sk];if(v[0]>0)put(sk,'po_avail',v[0]);if(v[1]>0)put(sk,'po_inbound',v[1]);if(v[2]>0)put(sk,'po_inbound_oms',v[2]);if(v[3]>0)put(sk,'po_sales_30d',v[3]);if(v[4]>0)put(sk,'fba_sales_30d',v[4]);if(v[5]>0)put(sk,'po_age90',v[5]);put(sk,'is_vc',1)});
                     log.push('VC库存销售汇总 ✓'+ct);
                 } else log.push('VC库存销售汇总 ✗表头未识别');
             }
