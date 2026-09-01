@@ -210,8 +210,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="kpi-row" id="ratioKpi"></div>
 <div class="asin-table-wrap"><table class="asin-table"><thead id="ratioHead"></thead><tbody id="ratioBody"></tbody></table></div>
 <div class="chart-area" style="margin-top:12px"><h2>各运营·库销比</h2><div class="chart-wrap" style="height:320px"><canvas id="c7"></canvas></div></div>
-<div class="pivot-block" style="margin-top:12px" id="scvcBlock">
-<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+<div class="pivot-block" style="margin-top:12px;border:2px solid #8899cc33;border-radius:10px" id="scvcBlock">
+<div id="scvcKpi"></div>
+<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;flex-wrap:wrap">
 <h2 style="font-size:14px;font-weight:600;margin:0">🛒 SC vs VC 库销比对比</h2>
 <select class="filter-select" id="fScVcOp" onchange="renderScVc()" style="margin-left:8px"><option value="">全部运营</option></select>
 <span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 库销比差异大 → 建议转移购物车</span>
@@ -1274,18 +1275,39 @@ function renderScVc(){
     function vcRatio(i){ var s = sn(i.po_sales_30d); return s > 0 ? sn(i.po_avail)/s : 0; }
     function osRatio(i){ var s = sn(i.fba_sales_30d) + sn(i.po_sales_30d); return s > 0 ? sn(i.overseas_avail)/s : 0; }
     document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th>海外仓在途</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th></tr>';
+    // 顶部对比卡：SC vs VC 平均库销比 + 建议转移数
+    var avgSc = 0, avgVc = 0, toSc = 0, toVc = 0, bal = 0;
+    rows.forEach(function(i){
+        var sr = scRatio(i), vr = vcRatio(i);
+        avgSc += sr; avgVc += vr;
+        var diff = sr - vr;
+        if (diff > 2) toSc++; else if (diff < -2) toVc++; else bal++;
+    });
+    var n = rows.length || 1;
+    avgSc = avgSc / n; avgVc = avgVc / n;
+    var diff = avgSc - avgVc;
+    var trend = Math.abs(diff) > 0.5 ? (diff > 0 ? '<span style="color:var(--red);font-weight:700">SC 偏高 → 建议转移购物车消化 SC</span>' : '<span style="color:var(--green);font-weight:700">VC 偏高 → 建议转移购物车消化 VC</span>') : '<span style="color:var(--text-muted)">SC/VC 均衡</span>';
+    var scvcKpi = document.getElementById('scvcKpi');
+    if (scvcKpi) scvcKpi.innerHTML =
+        '<div class="kpi-row" style="margin-bottom:10px">' +
+        '<div class="kpi-card" style="border-top:3px solid #3559c7"><div class="label">🛒 SC 平均库销比</div><div class="value" style="color:#3559c7">' + avgSc.toFixed(2) + '</div></div>' +
+        '<div class="kpi-card" style="border-top:3px solid #2c855b"><div class="label">🛒 VC 平均库销比</div><div class="value" style="color:#2c855b">' + avgVc.toFixed(2) + '</div></div>' +
+        '<div class="kpi-card" style="border-top:3px solid var(--red)"><div class="label">建议转SC消化</div><div class="value" style="color:var(--red)">' + toSc + '</div></div>' +
+        '<div class="kpi-card" style="border-top:3px solid var(--green)"><div class="label">建议转VC消化</div><div class="value" style="color:var(--green)">' + toVc + '</div></div>' +
+        '<div class="kpi-card" style="border-top:3px solid #8899cc"><div class="label">差异判断</div><div class="value" style="font-size:14px">' + trend + '</div></div>' +
+        '</div>';
     var body = '';
     rows.forEach(function(i){
         var sr = scRatio(i), vr = vcRatio(i), orr = osRatio(i);
-        var diff = sr - vr, suggest;
-        if (diff > 2) suggest = '<span style="color:var(--red);font-weight:600">→转SC消化</span>';
-        else if (diff < -2) suggest = '<span style="color:var(--green);font-weight:600">→转VC消化</span>';
-        else suggest = '<span style="color:var(--text-muted)">均衡</span>';
-        body += '<tr><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td><td>' + (i.operator||'') + '</td>' +
+        var diff = sr - vr, suggest, sBadge;
+        if (diff > 2) { suggest = '<span style="background:rgba(199,72,79,.12);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转SC消化</span>'; sBadge = 'background:rgba(53,89,199,.06)'; }
+        else if (diff < -2) { suggest = '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转VC消化</span>'; sBadge = 'background:rgba(44,133,91,.06)'; }
+        else { suggest = '<span style="color:var(--text-muted);font-size:11px">均衡</span>'; sBadge = ''; }
+        body += '<tr style="' + sBadge + '"><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td><td>' + (i.operator||'') + '</td>' +
             '<td class="num">' + fc(i.fba_avail) + '</td><td class="num">' + fc(i.fba_inbound) + '</td><td class="num">' + fc(i.fba_sales_30d) + '</td>' +
             '<td class="num">' + fc(i.po_avail) + '</td><td class="num">' + fc(i.po_inbound) + '</td><td class="num">' + fc(i.po_sales_30d) + '</td>' +
             '<td class="num">' + fc(i.overseas_avail) + '</td><td class="num">' + fc(i.overseas_inbound) + '</td>' +
-            '<td class="num">' + f2(sr) + '</td><td class="num">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td></tr>';
+            '<td class="num" style="color:#3559c7;font-weight:600">' + f2(sr) + '</td><td class="num" style="color:#2c855b;font-weight:600">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td></tr>';
     });
     document.getElementById('scvcBody').innerHTML = body;
 }
@@ -1879,10 +1901,13 @@ document.getElementById("changeStock0").innerHTML=zh;
     kh+='<div class="pivot-table-wrap"><table class="pivot-table" style="width:100%"><thead><tr>';
     kh+='<th style="font-size:13px;padding:12px 14px">渠道</th><th style="font-size:13px;padding:12px 14px">'+wkPrev+'在库</th><th style="font-size:13px;padding:12px 14px">'+wkLabel+'在库</th>';
     kh+='<th style="border-left:2px solid var(--accent);font-size:13px;padding:12px 14px">本周到货</th><th style="font-size:13px;padding:12px 14px">消耗/发走</th><th style="font-size:13px;padding:12px 14px">在库Δ</th></tr></thead><tbody>';
+    var maxA = Math.max.apply(null, CHS.map(function(k){return agg[k].a1}))||1;
     CHS.forEach(function(k){
         var a=agg[k];
         var delta=a.a1-a.a0;
-        kh+='<tr><td style="font-weight:700;font-size:15px;padding:14px">'+k+'</td><td class="num" style="font-size:16px;padding:14px">'+fc(a.a0)+'</td><td class="num" style="font-size:16px;padding:14px;font-weight:600">'+fc(a.a1)+'</td>';
+        var pct=Math.round(a.a1/maxA*100);
+        var bar='linear-gradient(90deg,rgba(37,99,235,.14) '+pct+'%,transparent '+pct+'%)';
+        kh+='<tr><td style="font-weight:700;font-size:15px;padding:14px">'+k+'</td><td class="num" style="font-size:16px;padding:14px">'+fc(a.a0)+'</td><td class="num" style="font-size:16px;padding:14px;font-weight:600;background:'+bar+'">'+fc(a.a1)+'</td>';
         kh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(a.pure)+';font-weight:700;font-size:18px;padding:14px">'+fsign(a.pure)+'</td>';
         kh+='<td class="num" style="font-size:14px;padding:14px">'+(k==='FBA'||k==='PO'?fc(a.cons):'<span style="color:var(--text-muted)">—</span>')+'</td>';
         kh+='<td class="num" style="'+fcol(delta)+';font-size:14px;padding:14px">'+fsign(delta)+'</td></tr>';
@@ -1928,11 +1953,13 @@ document.getElementById("changeChannels").innerHTML=kh;
     });
     var sh='<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;margin-bottom:6px">👤 运营维度统计 <span style="color:var(--text-muted);font-weight:400;font-size:11px">（纯滚入 = Δ在库+实销，只看FBA/PO）</span></div>';
     sh+='<div class="pivot-table-wrap" style="max-height:400px"><table class="pivot-table"><thead><tr><th>运营</th><th>SKU数</th><th style="border-left:2px solid var(--accent)">FBA纯滚入</th><th>PO纯滚入</th><th>FBA在库</th><th>PO在库</th><th>FBA在途</th><th>PO在途</th><th>可用库存Δ</th><th>在途Δ</th></tr></thead><tbody>';
-    Object.keys(byOp).sort().forEach(function(o){
+    var opCols=['#3559c7','#2c855b','#8899cc','#16857a','#e5cf83','#c7484f','#7c3aed','#ea580c','#64748b','#0e7490'];
+    Object.keys(byOp).sort().forEach(function(o,oi){
         var d=byOp[o];
-        sh+='<tr><td style="font-weight:600">'+o+'</td><td class="num">'+d.sk+'</td>';
-        sh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(d.fbPure)+';font-weight:600">'+fsign(d.fbPure)+'</td>';
-        sh+='<td class="num" style="'+fcol(d.poPure)+'">'+fsign(d.poPure)+'</td>';
+        var oc=opCols[oi%opCols.length];
+        sh+='<tr><td style="font-weight:700"><span style="display:inline-flex;width:22px;height:22px;border-radius:6px;background:'+oc+'22;color:'+oc+';align-items:center;justify-content:center;font-size:11px;margin-right:8px">'+o.charAt(0)+'</span>'+o+'</td><td class="num">'+d.sk+'</td>';
+        sh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(d.fbPure)+';font-weight:700;font-size:16px">'+fsign(d.fbPure)+'</td>';
+        sh+='<td class="num" style="'+fcol(d.poPure)+';font-weight:700;font-size:16px">'+fsign(d.poPure)+'</td>';
         sh+='<td class="num">'+fc(d.fbCur)+'</td><td class="num">'+fc(d.poCur)+'</td>';
         sh+='<td class="num" style="color:var(--text-muted)">'+fc(d.fbIn)+'</td><td class="num" style="color:var(--text-muted)">'+fc(d.poIn)+'</td>';
         sh+='<td class="num" style="'+fcol(d.avD)+'">'+fsign(d.avD)+'</td><td class="num" style="'+fcol(d.InD)+'">'+fsign(d.InD)+'</td></tr>';
@@ -1969,8 +1996,9 @@ document.getElementById("changeChannels").innerHTML=kh;
         var dAv=pAv!==null?totAv-pAv:null;
         var dIn=pIn!==null?totIn-pIn:null;
         dh+='<tr><td>'+(i.operator||'')+'</td><td>'+(i.asin?'<a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a>':'<span style="color:var(--text-muted)">—</span>')+'</td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td>';
-        dh+='<td class="num" style="border-left:2px solid var(--accent);'+fcol(pf)+';font-weight:600">'+fsign(pf)+'</td>';
-        dh+='<td class="num" style="'+fcol(pp)+'">'+fsign(pp)+'</td>';
+        function badge(v,ac){return v>0?'<span style="background:'+ac+'22;color:'+ac+';padding:2px 10px;border-radius:10px;font-weight:700;font-size:12px">'+fsign(v)+'</span>':'<span style="color:var(--text-muted);font-size:12px">'+fsign(v)+'</span>'}
+        dh+='<td class="num" style="border-left:2px solid var(--accent)">'+badge(pf,'#3559c7')+'</td>';
+        dh+='<td class="num">'+badge(pp,'#2c855b')+'</td>';
         dh+='<td class="num">'+fc(totAv)+'</td><td class="num" style="'+fcol(dAv)+'">'+fsign(dAv)+'</td>';
         dh+='<td class="num">'+fc(totIn)+'</td><td class="num" style="'+fcol(dIn)+'">'+fsign(dIn)+'</td></tr>';
     });
@@ -2413,27 +2441,30 @@ function renderBtr(){
     var T2=vcItems.filter(function(i){return sn(i.po_avail)<20&&sn(i.overseas_avail)<20&&sn(i.overseas_inbound)<20});
     function poR(i){var s=sn(i.sales_30d);return s>0?(sn(i.po_avail)+sn(i.po_inbound))/s:0}
     function osR(i){var s=sn(i.sales_30d);return s>0?sn(i.overseas_avail)/s:0}
-    function tbl(title,list,opt){
-        var th='<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+title+' <span style="font-size:11px;color:var(--text-muted);font-weight:400">（'+list.length+' 个SKU'+(opt?' · '+opt:'')+'）</span></div>';
+    function tbl(title,list,opt,accent){
+        var ac=accent||'var(--accent)';
+        var th='<div class="pivot-block" style="border-left:4px solid '+ac+';border-radius:8px;margin-bottom:14px">';
+        th+='<div style="font-size:14px;font-weight:800;color:'+ac+';padding:10px 14px 2px">'+title+' <span style="font-size:11px;color:var(--text-muted);font-weight:400">（'+list.length+' 个SKU'+(opt?' · '+opt:'')+'）</span></div>';
         th+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
         th+='<th>ASIN</th><th>商编</th><th>品类</th><th>运营</th><th>PO在库</th><th>PO库销比</th><th>海外仓</th><th>海外仓在途</th><th>海外仓库销比</th><th>箱规</th><th>是否不来单</th><th>备注</th>';
         th+='</tr></thead><tbody>';
         list.forEach(function(i){
             var k=btrKey(i),s=st[k]||{};
             th+='<tr><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td><td>'+(i.operator||'')+'</td>';
-            th+='<td class="num" style="color:var(--red);font-weight:600">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
+            th+='<td class="num" style="color:var(--red);font-weight:700">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+fc(sn(i.overseas_avail))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+osR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+btrBox(i.sku)+'</td>';
             th+='<td><select onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'noPo\',this.value)" style="padding:2px 4px;font-size:11px"><option value="">—</option><option value="是"'+(s.noPo==='是'?' selected':'')+'>是</option><option value="否"'+(s.noPo==='否'?' selected':'')+'>否</option></select></td>';
             th+='<td><input value="'+(s.note||'')+'" onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'note\',this.value)" placeholder="备注..." style="width:110px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"></td></tr>';
         });
         th+='</tbody></table></div>';
+        th+='</div>';
         return th;
     }
     T1.sort(function(a,b){return sn(b.overseas_avail)-sn(a.overseas_avail)});
     T2.sort(function(a,b){return sn(b.sales_30d)-sn(a.sales_30d)});
-    document.getElementById('btrType1').innerHTML=tbl('🅰 类型1 · PO&lt;20 & 海外仓&gt;20（海外仓有货，建议提报BTR）',T1);
-    document.getElementById('btrType2').innerHTML=tbl('🅱 类型2 · PO&lt;20 & 海外仓&lt;20 & 海外仓在途&lt;20（建议发货到海外仓防断货）',T2,'按30D销量排序');
+    document.getElementById('btrType1').innerHTML=tbl('🟠 海外仓有货 · PO在库低（PO&lt;20 & 海外仓&gt;20）',T1,'海外仓有货，建议提报','var(--orange)');
+    document.getElementById('btrType2').innerHTML=tbl('🔴 双端缺货 · PO&lt;20 & 海外仓&lt;20 & 在途&lt;20',T2,'按30D销量排序，建议发货海外仓防断货','var(--red)');
     if(document.getElementById('fCatBtr').options.length<=1){var cats={};D.items.forEach(function(i){if(i.category)cats[i.category]=true});var ch='<option value="">全部品类</option>';Object.keys(cats).sort().forEach(function(c){ch+='<option>'+c+'</option>'});document.getElementById('fCatBtr').innerHTML=ch}
     if(document.getElementById('fOpBtr').options.length<=1){var oos={};D.items.forEach(function(i){if(i.operator)oos[i.operator]=true});var oh='<option value="">全部运营</option>';Object.keys(oos).sort().forEach(function(o){oh+='<option>'+o+'</option>'});document.getElementById('fOpBtr').innerHTML=oh}
 }
