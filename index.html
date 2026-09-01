@@ -1133,7 +1133,7 @@ function renderRatio() {
     if (rf) {
         d = d.filter(function(i) {
             var er = effRatio(i);
-            if (rf === 'dead') return sn(i.sales_30d) === 0;
+            if (rf === 'dead') return effRatio(i) < 1;
             if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
             if (rf === 'healthy') return sn(i.sales_30d) > 0 && er >= 2 && er < 4;
             if (rf === 'slow') return sn(i.sales_30d) > 0 && er >= 4 && er < 7;
@@ -1146,7 +1146,7 @@ function renderRatio() {
     var dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
     baseD.forEach(function(i) {
         var er = effRatio(i);
-        if (sn(i.sales_30d) === 0) dead++;
+        if (er < 1) dead++;
         else if (er < 2) risk++;
         else if (er < 4) healthy++;
         else if (er < 7) slow++;
@@ -1154,7 +1154,7 @@ function renderRatio() {
     });
     
     document.getElementById('ratioKpi').innerHTML =
-        '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">0\u52A8\u9500</div><div class="value" style="color:var(--text-muted)">' + dead + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">\u65AD\u8D27 &lt;1</div><div class="value" style="color:var(--red);font-weight:700">' + dead + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-risk" onclick="clickKPI(\'risk\')"><div class="label">\u98CE\u9669 &lt;2</div><div class="value" style="color:var(--red)">' + risk + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-healthy" onclick="clickKPI(\'healthy\')"><div class="label">\u6B63\u5E38 2-4</div><div class="value" style="color:var(--green)">' + healthy + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-slow" onclick="clickKPI(\'slow\')"><div class="label">\u504F\u6162 4-7</div><div class="value" style="color:var(--orange)">' + slow + '</div></div>' +
@@ -2300,6 +2300,8 @@ function handleNewDataImport(e){
                 // 库存明细兜底：仅当BI字段缺失时
                 if(m._inv_av!==undefined&&(it.fba_avail===undefined||it.fba_avail===0))it.fba_avail=m._inv_av;
                 if(m._inv_ht!==undefined&&(it.fba_inbound===undefined||it.fba_inbound===0))it.fba_inbound=m._inv_ht;
+                // 采购在途（剩余订单）= 自营仓采购在途，来自库存明细报表（BI/ERP无此口径）
+                if(m._inv_pu!==undefined&&(it.purchase_inbound===undefined||it.purchase_inbound===0))it.purchase_inbound=m._inv_pu;
             });
             D._imported=true;sd();
             renderPivot();renderStock();renderRatio();renderChange();renderAlerts();
@@ -2641,7 +2643,7 @@ document.addEventListener('click',function(e){
 </ul>
 <p><b>逻辑</b></p>
 <ul>
-<li>判断标准：可用库销比=(FBA可用+PO可用)/近30天销量 —— <b>&lt;2 断货风险 / 2-4 正常 / 4-7 需动销 / &gt;7 积压 / 0销量=沉睡</b></li>
+<li>判断标准：可用库销比=(FBA可用+PO可用)/近30天销量 —— <b>&lt;1 断货（含0销量）/ 1-2 断货风险 / 2-4 正常 / 4-7 需动销 / &gt;7 积压</b></li>
 <li>数据来源：库存=BI实时；销量=运营综合分析表；属性=映射表</li>
 </ul>
 <h4>📦 板块4 库存变化</h4>
