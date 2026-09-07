@@ -1742,8 +1742,13 @@ function resetAll() {
 // ══════════════════════════════════════════════
 function initData() {
     try {
-        // Try localStorage first
+        // Try localStorage first, but drop stale cache (EMBED_DATA newer → use EMBED)
         var saved = ls();
+        if (saved && typeof EMBED_DATA !== 'undefined' && EMBED_DATA && EMBED_DATA.ts && saved.ts) {
+            var s1 = String(saved.ts).replace(/[^0-9]/g,'').substring(0,14);
+            var s2 = String(EMBED_DATA.ts).replace(/[^0-9]/g,'').substring(0,14);
+            if (s1 < s2) { try { localStorage.removeItem(LK); } catch(e){} saved = null; }
+        }
         if (saved) {
             D = saved;
             applyOpMapping();
@@ -1859,7 +1864,7 @@ function renderChange(){
     var zkArr=zk.reduce(function(s,i){return s+Math.max(0,i._arrA||0)},0);
     var zkSl=zk.reduce(function(s,i){return s+sn(i.sales_30d)},0);
         var zh='<div class="pivot-block" style="margin-bottom:14px;border:2px solid var(--accent);border-radius:10px">';
-    zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 8px">📦 0库存到货统计 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA与PO均无库存的断货ASIN · 本周到货 = max(0, Δ在库+实销) · 按总在途排序 · IFS待发货=已下发货需求的量）</span></div>';
+    zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 8px">📦 0库存到货统计 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA与PO均无库存的断货ASIN · 本周到货 = 本周在库−上周在库（回货量，0销量无需加实销） · 按总在途排序 · IFS待发货=已下发货需求的量）</span></div>';
     zh+='<div class="kpi-row" style="margin:0 14px 10px">';
     zh+='<div class="kpi-card"><div class="label">断货SKU</div><div class="value" style="color:var(--red);font-size:24px">'+zk.length+'</div></div>';
     zh+='<div class="kpi-card"><div class="label">总在途</div><div class="value" style="color:var(--accent);font-size:24px">'+fc(zkIn)+'</div></div>';
@@ -1874,7 +1879,7 @@ function renderChange(){
     zh+='<th style="border-left:2px solid var(--accent)">本地可用</th><th>采购在途</th><th>本地本周到货</th>';
     zh+='<th style="border-left:2px solid var(--accent)">总在途</th><th>IFS待发货</th></tr></thead><tbody>';
     zk.slice(0,300).forEach(function(i){
-        function wkArr(k){var p=prevM[i.sku];if(!p)return null;var d=curAv(i,k)-prevAv(i,k)+saleOf(i,k);return d>0?d:0}
+        function wkArr(k){var p=prevM[i.sku];if(!p)return null;var d=curAv(i,k)-prevAv(i,k);return d>0?d:0} // 断货SKU(0库存0销量): 到货=纯Δ在库(回货量)
         zh+='<tr><td>'+(i.operator||'')+'</td><td>'+(i.asin?'<a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a>':'<span style="color:var(--text-muted)">—</span>')+'</td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td>';
         zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td>';
         zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(sn(i.fba_avail))+'</td><td class="num">'+fc(sn(i.fba_inbound))+'</td><td class="num" style="'+fcol(wkArr('FBA'))+'">'+fsign(wkArr('FBA'))+'</td>';
