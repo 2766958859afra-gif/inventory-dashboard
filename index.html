@@ -1833,8 +1833,13 @@ function renderChange(){
     function prevAv(i,k){var s=prevM[i.sku];if(!s)return null;return k==='FBA'?s.fa:k==='PO'?s.pa:k==='海外仓'?s.oa:s.lo}
     function curIn(i,k){return k==='FBA'?sn(i.fba_inbound):k==='PO'?sn(i.po_inbound):k==='海外仓'?sn(i.overseas_inbound):sn(i.purchase_inbound)}
     function prevIn(i,k){var s=prevM[i.sku];if(!s)return null;return k==='FBA'?s.fi:k==='PO'?s.pi:k==='海外仓'?s.oi:s.pu}
-    function saleOf(i,k){ // 实销：周销量优先，无则近30天
-        return k==='FBA'?sn(i.fba_sales_30d):sn(i.po_sales_30d);
+    function saleOf(i,k){ // 实销：周销量优先；无周维度数据则用近30天/4.3周均（避免30天累计冒充周销量导致到货虚高）
+        var wks2=D.week_sales||{};
+        var wkLbl = wkLabel || '';
+        if(wks2[wkLbl]&&wks2[wkLbl][i.sku])return wks2[wkLbl][i.sku];
+        if(wks2[wkPrev]&&wks2[wkPrev][i.sku])return wks2[wkPrev][i.sku];
+        var s30 = k==='FBA'?sn(i.fba_sales_30d):sn(i.po_sales_30d);
+        return s30>0 ? Math.round(s30/4.3*10)/10 : 0;
     }
     function pureIn(i,k){ // 纯滚入 = max(0, Δ在库 + 实销)：负数=消耗大于到货，纯滚入记 0
         var p=prevAv(i,k);if(p===null)return null;
