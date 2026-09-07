@@ -1839,6 +1839,7 @@ function renderChange(){
     function curIn(i,k){return k==='FBA'?sn(i.fba_inbound):k==='PO'?sn(i.po_inbound):k==='海外仓'?sn(i.overseas_inbound):sn(i.purchase_inbound)}
     function prevIn(i,k){var s=prevM[i.sku];if(!s)return null;return k==='FBA'?s.fi:k==='PO'?s.pi:k==='海外仓'?s.oi:s.pu}
     function saleOf(i,k){ // 实销：周销量优先；无周维度数据则用近30天/4.3周均（避免30天累计冒充周销量导致到货虚高）
+        if((curAv(i,k)||0)<=0)return 0; // 该渠道当前断货(可用=0)：当期无实销，历史销量(断货前)不摊入到货
         var wks2=D.week_sales||{};
         var wkLbl = wkLabel || '';
         if(wks2[wkLbl]&&wks2[wkLbl][i.sku])return wks2[wkLbl][i.sku];
