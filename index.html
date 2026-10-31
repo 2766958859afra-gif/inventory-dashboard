@@ -1889,10 +1889,10 @@ function renderChange(){
             var nS = sn(i.fba_avail)+sn(i.po_avail);    // 当前可用
             var a7 = sn(i.arrive_7d);                   // 近7天真实入库
             i._pS=pS===null?0:pS; i._nS=nS; i._dS=nS-(pS===null?0:pS); i._a7=a7;
-            // 🆕 本周回货：这7天有入库 且 现在有货 且 之前没货（快照=0 或 当前量≤入库量）
-            var refillByArr = (a7>0 && nS>0 && (pS===null || pS===0 || (nS-a7)<=0));
-            var refillBySnap = (pS===0 && nS>0);
-            if(refillByArr || refillBySnap){ i._why = refillByArr ? '近7天入库 '+Math.round(a7) : '快照对比'; refill.push(i); }
+            // 🆕 本周回货：严格 = 上期快照为 0 且本期有货（无快照时才用入库反推）
+            var refillBySnap = (pS === 0 && nS > 0);
+            var refillByArr  = (pS === null && a7 > 0 && nS > 0 && (nS - a7) <= 0);
+            if(refillBySnap || refillByArr){ i._why = refillBySnap ? '快照 '+Math.round(pS)+'→'+Math.round(nS) : '近7天入库 '+Math.round(a7); refill.push(i); }
             else if(pS!==null && pS>0 && nS===0) newBreak.push(i);
             else if(pS===0 && nS===0) stayOut.push(i);
         });
