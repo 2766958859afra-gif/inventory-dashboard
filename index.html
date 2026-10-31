@@ -409,6 +409,30 @@ function updateTimestamps() {
         else if (D._imported) ds.innerHTML = '<span style="color:var(--orange)">\uD83D\uDCDD 已导入</span>';
         else ds.innerHTML = '<span style="color:var(--green)">\u2601 内嵌数据</span>';
     }
+    // 数据源新鲜度提示（各数据块的实际日期）
+    var sd = document.getElementById('srcDates');
+    if (!sd) {
+        var host = document.getElementById('ts0');
+        if (host && host.parentNode) {
+            sd = document.createElement('span');
+            sd.id = 'srcDates';
+            sd.style.cssText = 'font-size:11px;margin-left:10px;padding:2px 8px;border-radius:6px;background:rgba(53,89,199,.08);color:var(--text-muted)';
+            host.parentNode.insertBefore(sd, host.nextSibling);
+        }
+    }
+    if (sd && D && D._src_dates) {
+        var parts = [], stale = 0;
+        Object.keys(D._src_dates).forEach(function(k) {
+            var v = D._src_dates[k];
+            var isOld = /^\d{4}-\d{2}-\d{2}$/.test(v) && v < (new Date()).toISOString().slice(0,10);
+            if (isOld) stale++;
+            parts.push(k.split(' ')[0] + ' ' + v + (isOld ? ' ⚠️' : ' ✓'));
+        });
+        sd.innerHTML = '数据源：' + parts.join(' ｜ ');
+        sd.style.background = stale ? 'rgba(199,72,79,.10)' : 'rgba(44,133,91,.10)';
+        sd.style.color = stale ? '#c7484f' : '#2c855b';
+        sd.title = stale ? '有数据块日期早于今天，需要重新导出对应报表' : '全部数据源均为最新';
+    }
 }
 
 // ── Refresh all ──
