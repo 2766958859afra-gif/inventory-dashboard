@@ -273,6 +273,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <select class="filter-select" id="fOpChange" onchange="renderChange()"><option value="">全部运营</option></select><button class="btn-sm" onclick="exportChangeCSV()">📥 导出CSV</button><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button>
 </div></div>
 <div class="page-content">
+<div id="changeRefill"></div>
 <div id="changeStock0"></div>
 <div id="changeKpi" style="display:none"></div>
 <div id="changeChannels"></div>
@@ -1877,6 +1878,56 @@ function renderChange(){
         return v>0?v:0;
     }
     var CHS=['FBA','PO','海外仓','本地'];
+    // ══ 库存滚入预警：①断货→本周回货 ②本周新断货 ③持续断货 ══
+    (function(){
+        var refill=[], newBreak=[], stayOut=[];
+        items.forEach(function(i){
+            var p=prevM[i.sku]; if(!p)return;
+            var pS=sn(p.fa)+sn(p.pa), nS=sn(i.fba_avail)+sn(i.po_avail);
+            i._pS=pS; i._nS=nS; i._dS=nS-pS;
+            if(pS===0&&nS>0)refill.push(i);
+            else if(pS>0&&nS===0)newBreak.push(i);
+            else if(pS===0&&nS===0)stayOut.push(i);
+        });
+        refill.sort(function(a,b){return b._dS-a._dS});
+        newBreak.sort(function(a,b){return sn(b.sales_30d)-sn(a.sales_30d)});
+        stayOut.sort(function(a,b){return sn(b.sales_30d)-sn(a.sales_30d)});
+        var ROWS=[
+            {k:'refill', list:refill, tag:'🆕 本周回货', col:'#2c855b', bg:'rgba(44,133,91,.08)', tip:'上周 FBA+PO 库存=0 → 本周有货了，可安排推广'},
+            {k:'break', list:newBreak, tag:'⚠️ 本周新断货', col:'#c7484f', bg:'rgba(199,72,79,.08)', tip:'上周有货 → 本周 FBA+PO 归零，需紧急补货/调货'},
+            {k:'out', list:stayOut, tag:'📦 持续断货', col:'#8899cc', bg:'rgba(136,153,204,.07)', tip:'两周 FBA+PO 均为 0，等货到（详见下方 0库存到货统计）'}
+        ];
+        var all=refill.length+newBreak.length+stayOut.length;
+        if(!all){document.getElementById('changeRefill').innerHTML='';return;}
+        var zh='<div class="pivot-block" style="margin-bottom:14px;border:2px solid var(--accent);border-radius:10px">';
+        zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 6px">🚚 库存滚入预警 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA+PO 可用库存 · '+wkPrev+' → '+wkLabel+' 周对比 · 只列库存发生变化的关键 SKU）</span></div>';
+        zh+='<div class="kpi-row" style="margin:0 14px 10px">';
+        zh+='<div class="kpi-card" style="border-left:4px solid #2c855b"><div class="label">🆕 本周回货（可推广）</div><div class="value" style="color:#2c855b;font-size:24px">'+refill.length+'</div><div style="font-size:11px;color:var(--text-muted)">上周断货 → 本周到货</div></div>';
+        zh+='<div class="kpi-card" style="border-left:4px solid #c7484f"><div class="label">⚠️ 本周新断货（要补）</div><div class="value" style="color:#c7484f;font-size:24px">'+newBreak.length+'</div><div style="font-size:11px;color:var(--text-muted)">上月有货 → 本周归零</div></div>';
+        zh+='<div class="kpi-card" style="border-left:4px solid #8899cc"><div class="label">📦 持续断货（等货）</div><div class="value" style="color:#8899cc;font-size:24px">'+stayOut.length+'</div><div style="font-size:11px;color:var(--text-muted)">两周均无货</div></div>';
+        zh+='<div class="kpi-card"><div class="label">本周净滚入</div><div class="value" style="font-size:24px;color:var(--accent)">'+fsign(refill.reduce(function(s,i){return s+i._dS},0)+newBreak.reduce(function(s,i){return s+i._dS},0))+'</div><div style="font-size:11px;color:var(--text-muted)">回货 − 断货流失</div></div>';
+        zh+='</div>';
+        zh+='<div class="pivot-table-wrap" style="max-height:420px;overflow-x:auto"><table class="pivot-table" style="width:100%;font-size:11px"><thead><tr>';
+        zh+='<th>状态</th><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th style="border-left:2px solid var(--accent)">'+wkPrev+'库存</th><th>'+wkLabel+'库存</th><th>变化</th><th>30D销量</th><th>在途合计</th><th>IFS待发货</th><th>建议动作</th></tr></thead><tbody>';
+        ROWS.forEach(function(g){
+            g.list.forEach(function(i){
+                var totIn=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.po_inbound_oms)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
+                var act = g.k==='refill' ? (sn(i.sales_30d)>0?'✅ 有销量，可加推广告/促销':'库存已回，先观察动销')
+                        : g.k==='break' ? (totIn>0?'🚚 在途 '+Math.round(totIn)+'，跟进到货':'🚨 无在途，立即补货/海外仓调货')
+                        : (totIn>0?'⏳ 在途 '+Math.round(totIn)+'，等待':'🚨 无补给，紧急备货');
+                zh+='<tr style="background:'+g.bg+'"><td style="font-weight:700;color:'+g.col+'">'+g.tag+'</td>';
+                zh+='<td>'+(i.operator||'')+'</td><td>'+(i.asin?'<a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a>':'—')+'</td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td>';
+                zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(i._pS)+'</td><td class="num" style="font-weight:700">'+fc(i._nS)+'</td>';
+                zh+='<td class="num" style="'+fcol(i._dS)+';font-weight:700">'+fsign(i._dS)+'</td>';
+                zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td>';
+                zh+='<td class="num">'+(totIn>0?fc(totIn):'<span style="color:var(--text-muted)">0</span>')+'</td>';
+                zh+='<td class="num">'+fc(sn(i.ifs_pending))+'</td>';
+                zh+='<td style="font-size:11px">'+act+'</td></tr>';
+            });
+        });
+        zh+='</tbody></table></div></div>';
+        document.getElementById('changeRefill').innerHTML=zh;
+    })();
     // ── 0库存到货统计（断货ASIN + 在途批量 + 预计回货） ──
     var zk=items.filter(function(i){return sn(i.fba_avail)===0&&sn(i.po_avail)===0});
     zk.forEach(function(i){
