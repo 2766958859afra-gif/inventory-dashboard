@@ -2232,9 +2232,11 @@ function handleNewDataImport(e){
                         if(cA7>=0)put(sk,'arrive_7d',Number(rw[cA7])||0);
                         if(cA14>=0)put(sk,'arrive_14d',Number(rw[cA14])||0);
                         if(cA30>=0)put(sk,'arrive_30d',Number(rw[cA30])||0);
+                        // 30天销量=全量（覆盖所有运营，个人表导不全时以此为准）
+                        if(cSl>=0 && Number(rw[cSl])>0){put(sk,'sales_30d',Number(rw[cSl]));put(sk,'sales_src','进销存');}
                         ct++;
                     }
-                    log.push('进销存报表 ✓'+ct+'（仅补采购在途/等级/入库，销量改运营综合分析）');
+                    log.push('进销存报表 ✓'+ct+'（采购在途/等级/入库 + 30天销量全量主源）');
                 } else log.push('进销存报表 ✗表头未识别');
             }
             // ── 5. 运营综合分析明细（销量+运营月度数据） ──
@@ -2290,7 +2292,11 @@ function handleNewDataImport(e){
                         ct++;
                     }
                     // 销量覆盖 items（仅覆盖表里有的SKU）
-                    Object.keys(salesAgg).forEach(function(sk){put(sk,'sales_30d',salesAgg[sk])});
+                    Object.keys(salesAgg).forEach(function(sk){
+                        // 进销存 30天销量=全量，优先保留；运营综合分析仅补进销存没有的 SKU
+                        if(map[sk]&&map[sk].sales_src==='进销存'&&Number(map[sk].sales_30d)>0)return;
+                        put(sk,'sales_30d',salesAgg[sk]);
+                    });
                     D.week_sales=D.week_sales||{};
                     Object.keys(weekSales).forEach(function(wk){D.week_sales[wk]=weekSales[wk]});
                     // ASIN/sku → 运营 自动归属（用板块1下方 ASIN-运营映射表，谁导出的表都自动识别）
@@ -2316,16 +2322,22 @@ function handleNewDataImport(e){
                 if(hr>=0){
                     var cS=colOf(rs,hr,['商品编码']),cQ=colOf(rs,hr,['发货数量']),
                         cSt=colOf(rs,hr,['状态']),cT=colOf(rs,hr,['发货时间']);
-                    var agg={},ct=0;
+                    var agg={},ct=0,skipped=0;
+                    // 只统计「待发货」状态：排除 已发运(已发出)/取消/草稿(未提交的草稿需求)
+                    var EXCL={'已发运':1,'取消':1,'草稿':1};
                     for(var r=hr+1;r<rs.length;r++){
                         var rw=rs[r],sk=String(rw[cS]||'').trim();
                         if(!sk||SKIP.indexOf(sk)>=0)continue;
+                        if(cSt>=0){
+                            var st=String(rw[cSt]||'').trim();
+                            if(EXCL[st]){skipped++;continue;}
+                        }
                         if(!agg[sk])agg[sk]={q:0,cnt:0};
                         agg[sk].q+=Number(rw[cQ])||0;agg[sk].cnt++;
                         ct++;
                     }
                     Object.keys(agg).forEach(function(sk){put(sk,'ifs_pending',agg[sk].q)});
-                    log.push('IFS待发货 ✓'+ct+'（'+Object.keys(agg).length+' SKU）');
+                    log.push('IFS待发货 ✓'+ct+'行（'+Object.keys(agg).length+' SKU，已排除已发运/取消/草稿 '+skipped+' 行）');
                 } else log.push('IFS待发货 ✗表头未识别');
             }
             // ── 合并到 D.items（BI实时字段保留，只覆盖BI抓不到的） ──
@@ -2338,7 +2350,7 @@ function handleNewDataImport(e){
                 if(m)cnt++;
                 if(!it.asin&&a2sMap[it.sku])it.asin=a2sMap[it.sku];
                 if(!m)return;
-                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','po_age90','purchase_inbound','sales_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d','arrive_7d','arrive_14d','arrive_30d','is_vc'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
+                ['po_avail','po_inbound','po_sales_30d','fba_sales_30d','po_age90','purchase_inbound','sales_30d','ifs_pending','age_total','age_0_30','age_31_60','age_61_90','age_91_180','age_181_270','age_271_365','age_365p','age_sales_30d','arrive_7d','arrive_14d','arrive_30d','is_vc','sales_src'].forEach(function(k){if(m[k]!==undefined)it[k]=m[k]});
                 if(m.product_grade)it.product_grade=m.product_grade;
                 // 库存明细兜底：仅当BI字段缺失时
                 if(m._inv_av!==undefined&&(it.fba_avail===undefined||it.fba_avail===0))it.fba_avail=m._inv_av;
