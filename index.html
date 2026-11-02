@@ -1907,7 +1907,7 @@ function renderChange(){
         var all=refill.length+newBreak.length+stayOut.length;
         if(!all){document.getElementById('changeRefill').innerHTML='';return;}
         var zh='<div class="pivot-block" style="margin-bottom:14px;border:2px solid var(--accent);border-radius:10px">';
-        zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 6px">🚚 库存滚入预警 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA+PO 可用库存 · '+wkPrev+' → '+wkLabel+' · 回货判定优先用进销存「近7天真实入库」，无入库数据时用快照对比）</span></div>';
+        zh+='<div style="font-size:15px;font-weight:700;margin:10px 14px 6px">🚚 库存滚入预警 <span style="font-size:11px;color:var(--text-muted);font-weight:400">（FBA+PO 可用库存 · '+wkPrev+' → '+wkLabel+' · 入库=Δ总库存+期间出库推算，忽略近3天(BI延迟) · 回货判定：快照断货→本期有货）</span></div>';
         zh+='<div class="kpi-row" style="margin:0 14px 10px">';
         zh+='<div class="kpi-card" style="border-left:4px solid #2c855b"><div class="label">🆕 本周回货（可推广）</div><div class="value" style="color:#2c855b;font-size:24px">'+refill.length+'</div><div style="font-size:11px;color:var(--text-muted)">上周断货 → 本周到货</div></div>';
         zh+='<div class="kpi-card" style="border-left:4px solid #c7484f"><div class="label">⚠️ 本周新断货（要补）</div><div class="value" style="color:#c7484f;font-size:24px">'+newBreak.length+'</div><div style="font-size:11px;color:var(--text-muted)">上月有货 → 本周归零</div></div>';
@@ -1915,7 +1915,7 @@ function renderChange(){
         zh+='<div class="kpi-card"><div class="label">本周净滚入</div><div class="value" style="font-size:24px;color:var(--accent)">'+fsign(refill.reduce(function(s,i){return s+i._dS},0)+newBreak.reduce(function(s,i){return s+i._dS},0))+'</div><div style="font-size:11px;color:var(--text-muted)">回货 − 断货流失</div></div>';
         zh+='</div>';
         zh+='<div class="pivot-table-wrap" style="max-height:420px;overflow-x:auto"><table class="pivot-table" style="width:100%;font-size:11px"><thead><tr>';
-        zh+='<th>状态</th><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th style="border-left:2px solid var(--accent)">'+wkPrev+'库存</th><th>'+wkLabel+'库存</th><th>变化</th><th>30D销量</th><th>到货依据</th><th>在途合计</th><th>IFS待发货</th><th>建议动作</th></tr></thead><tbody>';
+        zh+='<th>状态</th><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th style="border-left:2px solid var(--accent)">'+wkPrev+'库存</th><th>'+wkLabel+'库存</th><th>变化</th><th>30D销量</th><th style="border-left:2px solid var(--accent)">近7天入库</th><th>近30天入库</th><th>到货依据</th><th>在途合计</th><th>IFS待发货</th><th>建议动作</th></tr></thead><tbody>';
         ROWS.forEach(function(g){
             g.list.forEach(function(i){
                 var totIn=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.po_inbound_oms)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
@@ -1927,6 +1927,9 @@ function renderChange(){
                 zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(i._pS)+'</td><td class="num" style="font-weight:700">'+fc(i._nS)+'</td>';
                 zh+='<td class="num" style="'+fcol(i._dS)+';font-weight:700">'+fsign(i._dS)+'</td>';
                 zh+='<td class="num">'+fc(sn(i.sales_30d))+'</td>';
+                var _a7b=sn(i.arrive_7d_bi), _a30b=sn(i.arrive_30d_bi);
+                zh+='<td class="num" style="border-left:2px solid var(--accent);'+(('+_a7b')>0?'color:var(--green);font-weight:600':'color:var(--text-muted)')+'">'+(_a7b>0?fc(_a7b):'—')+'</td>';
+                zh+='<td class="num" style="'+(_a30b>0?'font-weight:600':'color:var(--text-muted)')+'">'+(_a30b>0?fc(_a30b):'—')+'</td>';
                 zh+='<td class="num" style="font-size:10px;color:var(--text-muted)">'+(i._why||('近7天入库 '+Math.round(i._a7||0)))+'</td>';
                 zh+='<td class="num">'+(totIn>0?fc(totIn):'<span style="color:var(--text-muted)">0</span>')+'</td>';
                 zh+='<td class="num">'+fc(sn(i.ifs_pending))+'</td>';
