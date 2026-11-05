@@ -217,7 +217,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <select class="filter-select" id="fScVcOp" onchange="renderScVc()" style="margin-left:8px"><option value="">全部运营</option></select>
 <select class="filter-select" id="fChanScvc" onchange="renderScVc()" style="margin-left:6px"><option value="">全部链路</option><option value="SC">仅SC</option><option value="VC">仅VC</option><option value="dual">SC+VC双渠道</option></select>
 <select class="filter-select" id="fNeedScvc" onchange="renderScVc()" style="margin-left:6px"><option value="">全部</option><option value="need">只看需要转移</option></select>
-<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 购物车=近30天实际成交方 | <b style="color:#b45309">PO超期* 仅向海有最新VC数据(10-30)</b> | FBA超期=亚马逊仓181天以上</span>
+<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 购物车=前台实抓(Sold by)；带✓为实抓，无✓按销量推断 | <b style="color:#b45309">PO超期* 仅向海有最新VC数据(10-30)</b> | FBA超期=亚马逊仓181天以上</span>
 </div>
 <div class="asin-table-wrap" style="max-height:480px"><table class="asin-table"><thead id="scvcHead"></thead><tbody id="scvcBody"></tbody></table></div>
 </div>
@@ -1464,7 +1464,9 @@ function renderScVc(){
         var diff = sr - vr, suggest = '', sBadge = '';
         var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
         // 购物车活跃方 = 近30天实际成交方（销量）：两边都有销量时取大的
-        var cart = (sSC > 0 && sVC > 0) ? (sSC >= sVC ? 'SC' : 'VC') : (sSC > 0 ? 'SC' : (sVC > 0 ? 'VC' : ''));
+        // 购物车归属：优先用前台实抓 cart_owner，无则按销量推断
+        var cartReal = i.cart_owner || '';
+        var cart = cartReal || ((sSC > 0 && sVC > 0) ? (sSC >= sVC ? 'SC' : 'VC') : (sSC > 0 ? 'SC' : (sVC > 0 ? 'VC' : '')));
         // 只有「双渠道都有销量」才有转移意义：购物车不在积压方 → 才建议转
         var need = '';
         if (sSC > 0 && sVC > 0) {
@@ -1485,7 +1487,7 @@ function renderScVc(){
             '<td class="num"' + (sn(i.fba_age180)>0 ? ' style="color:#c7484f;font-weight:700"' : '') + '>' + (sn(i.fba_age180)>0 ? fc(i.fba_age180) : '-') + '</td>' +
             '<td class="num"' + (sn(i.po_age90)>0 ? ' style="color:#b45309;font-weight:700"' : '') + '>' + (sn(i.po_age90)>0 ? fc(i.po_age90) : '-') + '</td>' +
             '<td class="num">' + fc(i.overseas_inbound) + '</td>' +
-            '<td style="text-align:center">' + (cart === 'SC' ? '<span style="background:rgba(53,89,199,.12);color:#3559c7;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">SC</span>' : cart === 'VC' ? '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">VC</span>' : '<span style="color:var(--text-muted);font-size:11px">—</span>') + '</td>' +
+            '<td style="text-align:center">' + (cart === 'SC' ? '<span style="background:rgba(53,89,199,.12);color:#3559c7;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">SC' + (cartReal ? '✓' : '') + '</span>' : cart === 'VC' ? '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">VC' + (cartReal ? '✓' : '') + '</span>' : '<span style="color:var(--text-muted);font-size:11px">—</span>') + '</td>' +
             '<td class="num" style="color:#3559c7;font-weight:600">' + f2(sr) + '</td><td class="num" style="color:#2c855b;font-weight:600">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td><td>' + chanBadge(i) + '</td></tr>';
     });
     document.getElementById('scvcBody').innerHTML = body;
