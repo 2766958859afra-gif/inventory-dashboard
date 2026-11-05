@@ -233,12 +233,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div class="controls">
 <select class="filter-select" id="fOpBtr" onchange="renderBtr()"><option value="">全部运营</option></select>
 <select class="filter-select" id="fCatBtr" onchange="renderBtr()"><option value="">全部品类</option></select>
-<button class="btn-sm" onclick="exportBtrCSV()" style="margin-left:auto">📥 导出CSV</button>
+<button class="btn-sm" onclick="btrImportClick()" style="margin-left:auto;border-color:#2c855b;color:#2c855b">📤 批量导入「是否不来单」</button>
+<input type="file" id="btrImportFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="btrImportFile(this)">
+<button class="btn-sm" onclick="exportBtrCSV()">📥 导出CSV</button>
 <button class="btn-sm" onclick="openDoc()">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()">📮 意见反馈</button><button class="btn-sm" onclick="openSettings()">⚙ 设置</button>
 </div></div>
 <div class="page-content">
 <div class="pivot-block" style="margin-bottom:12px"><div style="font-size:12px;color:var(--text-muted);line-height:1.7">
-🚚 <b>BTR 建议提报</b>：<b>类型1</b> PO在库&lt;20 且 海外仓&gt;20（海外仓有货，建议提报 BTR 补货）｜<b>类型2</b> PO在库&lt;20 且 海外仓&lt;20 且 海外仓在途&lt;20（两端都缺，建议发货到海外仓防断货）。「是否不来单」下拉与备注<b>自动保存</b>（本浏览器），下次打开保留。箱规=库存数据表「单箱数量」，多箱规并列显示。
+🚚 <b>BTR 建议提报</b>：<b>类型1</b> PO在库&lt;20 且 海外仓&gt;20（海外仓有货，建议提报 BTR 补货）｜<b>类型2</b> PO在库&lt;20 且 海外仓&lt;20 且 海外仓在途&lt;20（两端都缺，建议发货到海外仓防断货）。「是否不来单」下拉与备注<b>自动保存</b>（本浏览器），下次打开保留；也可点「📤 批量导入」上传 Excel（表头含 <b>ASIN 或 商编</b> + <b>是否不来单</b>，值填 是/否/其他），导入后同样保留。箱规=库存数据表「单箱数量」，多箱规并列显示。
 </div></div>
 <div class="pivot-block" id="btrType1" style="margin-bottom:16px"></div>
 <div class="pivot-block" id="btrType2"></div>
@@ -2761,6 +2763,68 @@ function btrBox(sku){var b=EMBED_BOXSPEC&&EMBED_BOXSPEC[sku];return b?b.join('/'
 function btrState(){try{return JSON.parse(localStorage.getItem('btr_state')||'{}')}catch(e){return{}}}
 function btrSave(st){localStorage.setItem('btr_state',JSON.stringify(st))}
 function btrKey(i){return (i.vc_sc||i.sku)+'|'+(i.asin||'')}
+// ── 批量导入「是否不来单」（Excel/CSV：表头含 ASIN 或 商编 + 是否不来单）──
+function btrImportClick(){ var f=document.getElementById('btrImportFile'); if(f) f.click(); }
+function btrImportFile(inp){
+    var file = inp.files && inp.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e){
+        try {
+            var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+            if(!rows.length){ alert('文件为空'); return; }
+            // 找列名
+            var keys = Object.keys(rows[0]);
+            function findCol(cands){
+                for(var i=0;i<keys.length;i++){
+                    var k=String(keys[i]).replace(/\s/g,'');
+                    for(var j=0;j<cands.length;j++){ if(k.indexOf(cands[j])>=0) return keys[i]; }
+                }
+                return null;
+            }
+            var cAsin = findCol(['ASIN']);
+            var cSku  = findCol(['商编','SKU','商品编码']);
+            var cFlag = findCol(['是否不来单','不来单']);
+            if(!cFlag){ alert('未找到「是否不来单」列。\n当前表头：'+keys.join(' / ')); return; }
+            if(!cAsin && !cSku){ alert('未找到 ASIN 或 商编/SKU 列。\n当前表头：'+keys.join(' / ')); return; }
+            // 建索引
+            var byAsin={}, bySku={};
+            D.items.forEach(function(it){
+                if(it.asin) byAsin[String(it.asin).trim().toUpperCase()] = it;
+                bySku[String(it.sku).trim().toUpperCase()] = it;
+            });
+            var st = btrState();
+            var hit=0, miss=[], vals={};
+            rows.forEach(function(r){
+                var raw = String(r[cFlag]||'').trim();
+                if(!raw) return;
+                var v = raw.indexOf('是')===0 ? '是' : (raw.indexOf('否')===0 ? '否' : (raw.indexOf('其他')>=0 ? '其他' : raw));
+                var it = null;
+                if(cAsin){ var a=String(r[cAsin]||'').trim().toUpperCase(); if(a) it=byAsin[a]; }
+                if(!it && cSku){ var s=String(r[cSku]||'').trim().toUpperCase(); if(s) it=bySku[s]; }
+                if(!it){ miss.push(cAsin?String(r[cAsin]||r[cSku]||'').trim():String(r[cSku]||'').trim()); return; }
+                var k = btrKey(it);
+                if(!st[k]) st[k]={};
+                st[k].noPo = v;
+                vals[v] = (vals[v]||0)+1;
+                hit++;
+            });
+            btrSave(st);
+            renderBtr();
+            var msg = '✅ 导入完成\n成功 '+hit+' 条';
+            Object.keys(vals).forEach(function(v){ msg += '\n  '+v+': '+vals[v]; });
+            if(miss.length) msg += '\n\n未匹配 '+miss.length+' 条（前5个）：\n'+miss.slice(0,5).join('\n');
+            msg += '\n\n数据已保存到本浏览器，下次打开仍然保留。';
+            alert(msg);
+        } catch(err) {
+            alert('导入失败：'+err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    inp.value = '';
+}
 function renderBtr(){
     if(!D||!D.items)return;
     var fq=(document.getElementById('fOpBtr')||{}).value||'';
@@ -2781,15 +2845,18 @@ function renderBtr(){
         var th='<div class="pivot-block" style="border-left:4px solid '+ac+';border-radius:8px;margin-bottom:14px">';
         th+='<div style="font-size:14px;font-weight:800;color:'+ac+';padding:10px 14px 2px">'+title+' <span style="font-size:11px;color:var(--text-muted);font-weight:400">（'+list.length+' 个SKU'+(opt?' · '+opt:'')+'）</span></div>';
         th+='<div class="pivot-table-wrap" style="max-height:520px"><table class="pivot-table"><thead><tr>';
-        th+='<th>ASIN</th><th>商编</th><th>品类</th><th>运营</th><th>PO在库</th><th>PO库销比</th><th>海外仓</th><th>海外仓在途</th><th>海外仓库销比</th><th>箱规</th><th>是否不来单</th><th>备注</th>';
+        th+='<th>ASIN</th><th>商编</th><th>品类</th><th>运营</th><th title="FBA可用/FBA在途÷SC销量">FBA库销比</th><th>PO在库</th><th>PO库销比</th><th>海外仓</th><th>海外仓在途</th><th>海外仓库销比</th><th>箱规</th><th>是否不来单</th><th>备注</th>';
         th+='</tr></thead><tbody>';
         list.forEach(function(i){
             var k=btrKey(i),s=st[k]||{};
             th+='<tr><td><a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a></td><td style="font-weight:600">'+i.sku+cpIcon(i.sku)+'</td><td>'+(i.category||'')+'</td><td>'+(i.operator||'')+'</td>';
-            th+='<td class="num" style="color:var(--red);font-weight:700">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
+            var _fr = fbaRatio(i);
+                var _frCol = _fr >= 4 ? 'color:var(--red);font-weight:700' : (_fr >= 2 ? 'color:var(--orange);font-weight:600' : '');
+                th+='<td class="num" style="'+_frCol+'">'+(sn(i.fba_sales_30d)>0||sn(i.sales_30d)>0?_fr.toFixed(1):'—')+'</td>';
+                th+='<td class="num" style="color:var(--red);font-weight:700">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+fc(sn(i.overseas_avail))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+osR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+btrBox(i.sku)+'</td>';
-            th+='<td><select onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'noPo\',this.value)" style="padding:2px 4px;font-size:11px"><option value="">—</option><option value="是"'+(s.noPo==='是'?' selected':'')+'>是</option><option value="否"'+(s.noPo==='否'?' selected':'')+'>否</option></select></td>';
+            th+='<td><select onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'noPo\',this.value)" style="padding:2px 4px;font-size:11px"><option value="">—</option><option value="是"'+(s.noPo==='是'?' selected':'')+'>是</option><option value="否"'+(s.noPo==='否'?' selected':'')+'>否</option><option value="其他'+(s.noPo==='其他'?' selected':'')+'>其他</option></select></td>';
             th+='<td><input value="'+(s.note||'')+'" onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'note\',this.value)" placeholder="备注..." style="width:110px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"></td></tr>';
         });
         th+='</tbody></table></div>';
@@ -2807,7 +2874,7 @@ function btrSet(k,f,v){var st=btrState();if(!st[k])st[k]={};st[k][f]=v;btrSave(s
 function exportBtrCSV(){
     if(!D||!D.items)return;
     var st=btrState();
-    var lines=['\uFEFF类型,ASIN,商编,品类,运营,PO在库,PO库销比,海外仓,海外仓在途,海外仓库销比,箱规,是否不来单,备注'];
+    var lines=['\uFEFF类型,ASIN,商编,品类,运营,FBA库销比,PO在库,PO库销比,海外仓,海外仓在途,海外仓库销比,箱规,是否不来单,备注'];
     var rows=[];
     D.items.forEach(function(i){
         var isVc=i.is_vc===1||sn(i.po_avail)>0||sn(i.po_inbound)>0;
@@ -2819,7 +2886,7 @@ function exportBtrCSV(){
     function osR(i){var s=sn(i.sales_30d);return s>0?sn(i.overseas_avail)/s:0}
     rows.forEach(function(r){
         var i=r[1],s=st[btrKey(i)]||{};
-        lines.push([r[0],i.asin||'',i.sku||'',i.category||'',i.operator||'',sn(i.po_avail),poR(i).toFixed(1),sn(i.overseas_avail),sn(i.overseas_inbound),osR(i).toFixed(1),btrBox(i.sku),s.noPo||'',s.note||''].join(','));
+        lines.push([r[0],i.asin||'',i.sku||'',i.category||'',i.operator||'',fbaRatio(i).toFixed(1),sn(i.po_avail),poR(i).toFixed(1),sn(i.overseas_avail),sn(i.overseas_inbound),osR(i).toFixed(1),btrBox(i.sku),s.noPo||'',s.note||''].join(','));
     });
     var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='海外库存预警_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
