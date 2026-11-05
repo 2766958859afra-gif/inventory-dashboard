@@ -157,7 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <!-- Panel 1: 进销存总览 -->
 <div class="page active" id="pg-pivot">
 <div class="page-header"><h1>进销存总览</h1><span id="clock" class="date" style="font-size:12px;color:var(--accent);font-weight:600"></span><span id="ts0" class="date">加载中...</span>
-<div class="controls"><select class="filter-select" id="fOpPivot" onchange="renderPivot()"><option value="">全部运营</option></select><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
+<div class="controls"><select class="filter-select" id="fOpPivot" onchange="renderPivot()"><option value="">全部运营</option></select><select class="filter-select" id="fNewPivot" onchange="renderPivot()"><option value="">全部在售状态</option><option value="new">🆕 仅新品(≤90天)</option><option value="unsold">⏳ 仅未上架</option><option value="sold">仅老品在售</option></select><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
 <div class="page-content">
 <div id="import-section"><div class="import-head" onclick="toggleImport()"><h2 style="margin:0">导入数据（总表）</h2><span id="importArrow" style="font-size:10px;color:var(--text-muted)">▼ 展开</span></div>
 <div id="import-body" style="display:none">
@@ -654,13 +654,23 @@ function renderPivot() {
         }
         if (opSel.value) items = items.filter(function(i){ return i.operator === opSel.value; });
     }
+    // 新品/未上架筛选
+    var nf = document.getElementById('fNewPivot');
+    if (nf && nf.value) {
+        if (nf.value === 'new') items = items.filter(function(i){ return i.is_new === 1; });
+        else if (nf.value === 'unsold') items = items.filter(function(i){ return i.days_online === -1 || i.days_online === undefined || i.days_online === null; });
+        else if (nf.value === 'sold') items = items.filter(function(i){ return i.is_new === 0; });
+    }
     
     // Category pivot
     var catData = {};
     items.forEach(function(i) {
         var c = i.category || '\u672A\u5206\u7C7B';
-        if (!catData[c]) catData[c] = {sk:0, fa:0, fi:0, pa:0, pi:0, oa:0, oi:0, lo:0, pu:0, sl:0};
+        if (!catData[c]) catData[c] = {sk:0, new:0, sold:0, unsold:0, fa:0, fi:0, pa:0, pi:0, oa:0, oi:0, lo:0, pu:0, sl:0};
         catData[c].sk++;
+        if (i.is_new === 1) catData[c].new++;
+        else if (i.days_online === -1 || i.days_online === undefined || i.days_online === null) catData[c].unsold++;
+        else catData[c].sold++;
         catData[c].fa += sn(i.fba_avail);
         catData[c].fi += sn(i.fba_inbound);
         catData[c].pa += sn(i.po_avail);
@@ -673,12 +683,12 @@ function renderPivot() {
     });
     var catKeys = Object.keys(catData).sort();
     
-    var catHtml = '<h2>\uD83D\uDCCA 各品类·库存与销量汇总</h2><div class="pivot-table-wrap"><table class="pivot-table inv-pivot"><thead><tr><th>品类</th><th>SKU数</th><th>FBA可用</th><th>FBA在途</th><th>PO在库</th><th>PO在途</th><th>海外仓可用</th><th>海外仓在途</th><th>本地</th><th>总30d销量</th><th>FBA库销比</th><th>PO库销比</th><th>可用库销比</th><th>成品库销比</th><th>全链路库销比</th></tr></thead><tbody>';
+    var catHtml = '<h2>\uD83D\uDCCA 各品类·库存与销量汇总</h2><div class="pivot-table-wrap"><table class="pivot-table inv-pivot"><thead><tr><th>品类</th><th>SKU数</th><th title="FBA首次到货≤90天">\uD83C\uDD95\u65B0\u54C1</th><th title="从未到过FBA(未上架)">\u23F3\u672A\u4E0A\u67B6</th><th>FBA可用</th><th>FBA在途</th><th>PO在库</th><th>PO在途</th><th>海外仓可用</th><th>海外仓在途</th><th>本地</th><th>总30d销量</th><th>FBA库销比</th><th>PO库销比</th><th>可用库销比</th><th>成品库销比</th><th>全链路库销比</th></tr></thead><tbody>';
     var catTotals = [0,0,0,0,0,0,0,0];
     catKeys.forEach(function(c) {
         var d = catData[c];
         var fields = ['fa','fi','pa','pi','oa','oi','lo','sl'];
-        catHtml += '<tr><td>' + c + '</td><td class="num">' + d.sk + '</td>';
+        catHtml += '<tr><td>' + c + '</td><td class="num">' + d.sk + '</td><td class="num" style="color:#b45309;font-weight:600">' + (d.new||0) + '</td><td class="num" style="color:#8899cc">' + (d.unsold||0) + '</td>';
         fields.forEach(function(f, idx) {
             catTotals[idx] += d[f];
             catHtml += '<td class="num">' + fc(d[f]) + '</td>';
@@ -687,7 +697,9 @@ function renderPivot() {
         catHtml += '<td class="num">' + (_sl>0?((d.fa+d.fi)/_sl):0).toFixed(1) + '</td><td class="num">' + (_sl>0?((d.pa+d.pi)/_sl):0).toFixed(1) + '</td><td class="num">' + (_sl>0?((d.fa+d.pa)/_sl):0).toFixed(1) + '</td><td class="num">' + (_sl>0?((d.fa+d.fi+d.pa+d.pi+d.oa+d.oi+d.lo)/_sl):0).toFixed(1) + '</td><td class="num">' + (_sl>0?((d.fa+d.fi+d.pa+d.pi+d.oa+d.oi+d.lo+d.pu)/_sl):0).toFixed(1) + '</td>';
         catHtml += '</tr>';
     });
-    catHtml += '<tr class="total-row"><td>总计</td><td class="num">' + items.length + '</td>';
+    var totNew = 0, totUnsold = 0;
+    catKeys.forEach(function(c){ totNew += (catData[c].new||0); totUnsold += (catData[c].unsold||0); });
+    catHtml += '<tr class="total-row"><td>总计</td><td class="num">' + items.length + '</td><td class="num">' + totNew + '</td><td class="num">' + totUnsold + '</td>';
     catTotals.forEach(function(v) { catHtml += '<td class="num">' + fc(v) + '</td>'; });
     var _tsl = catTotals[7] || 0;
     catHtml += '<td class="num">' + (_tsl>0?((catTotals[0]+catTotals[1])/_tsl):0).toFixed(1) + '</td><td class="num">' + (_tsl>0?((catTotals[2]+catTotals[3])/_tsl):0).toFixed(1) + '</td><td class="num">' + (_tsl>0?((catTotals[0]+catTotals[2])/_tsl):0).toFixed(1) + '</td><td class="num">' + (_tsl>0?((catTotals[0]+catTotals[1]+catTotals[2]+catTotals[3]+catTotals[4]+catTotals[5]+catTotals[6])/_tsl):0).toFixed(1) + '</td><td class="num">' + (_tsl>0?((catTotals[0]+catTotals[1]+catTotals[2]+catTotals[3]+catTotals[4]+catTotals[5]+catTotals[6])/_tsl):0).toFixed(1) + '</td>';
@@ -1020,6 +1032,9 @@ function effRatio(i) {
 function isOutOfStock(i) {           // 完全断货：FBA 与 PO 可用均为 0
     return (sn(i.fba_avail) + sn(i.po_avail)) === 0;
 }
+function isUnsold(i) {               // 未上架：BI 无 FBA 首次到货时间
+    return i.days_online === -1 || i.days_online === undefined || i.days_online === null;
+}
 function fullRatio(i) {
     var s = sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail) + sn(i.purchase_inbound)) / s : 0;
@@ -1194,10 +1209,12 @@ function renderRatio() {
     if (rf) {
         d = d.filter(function(i) {
             var er = effRatio(i);
-            if (rf === 'dead') return effRatio(i) < 1;
+            if (rf === 'dead') return !isUnsold(i) && i.is_new !== 1 && effRatio(i) >= 0 && effRatio(i) < 1;
             if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
-            if (rf === 'zero') return isOutOfStock(i);
-            if (rf === 'nosale') return !isOutOfStock(i) && sn(i.sales_30d) <= 0;
+            if (rf === 'unsold') return isUnsold(i);
+            if (rf === 'newitem') return !isUnsold(i) && i.is_new === 1;
+            if (rf === 'zero') return !isUnsold(i) && i.is_new !== 1 && isOutOfStock(i);
+            if (rf === 'nosale') return !isUnsold(i) && i.is_new !== 1 && !isOutOfStock(i) && sn(i.sales_30d) <= 0;
             if (rf === 'healthy') return sn(i.sales_30d) > 0 && er >= 2 && er < 4;
             if (rf === 'slow') return sn(i.sales_30d) > 0 && er >= 4 && er < 7;
             if (rf === 'high') return sn(i.sales_30d) > 0 && er >= 7;
@@ -1206,13 +1223,17 @@ function renderRatio() {
     }
     
     // Compute KPI counts from 筛选后数据（无 rf 影响）
-    var zero = 0, nosale = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
+    var zero = 0, nosale = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0, nNew = 0, nUnsold = 0;
     baseD.forEach(function(i) {
-        if (isOutOfStock(i)) { zero++; return; }                  // 完全断货（可用库存=0）
+        // 未上架（从未到过FBA）→ 不参与库销比评价
+        if (isUnsold(i)) { nUnsold++; return; }
+        // 新品（FBA首次到货≤90天）→ 单列，不参与断货/0动销判定
+        if (i.is_new === 1) { nNew++; return; }
+        if (isOutOfStock(i)) { zero++; return; }                  // 完全断货
         var sale = sn(i.sales_30d);
         if (sale <= 0) { nosale++; return; }                       // 0动销（有库存但无销量）
         var er = effRatio(i);
-        if (er < 1) dead++;                                        // 即将断货
+        if (er < 1) dead++;
         else if (er < 2) risk++;
         else if (er < 4) healthy++;
         else if (er < 7) slow++;
@@ -1220,6 +1241,8 @@ function renderRatio() {
     });
     
     document.getElementById('ratioKpi').innerHTML =
+        '<div class="kpi-card kpi-clickable" id="kpi-unsold" onclick="clickKPI(\'unsold\')"><div class="label">\u23F3\u672A\u4E0A\u67B6</div><div class="value" style="color:#8899cc;font-weight:700">' + nUnsold + '</div><div style="font-size:10px;color:var(--text-muted)">\u4ECE\u672A\u5230\u8FC7FBA</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-new" onclick="clickKPI(\'newitem\')"><div class="label">\uD83C\uDD95\u65B0\u54C1</div><div class="value" style="color:#b45309;font-weight:700">' + nNew + '</div><div style="font-size:10px;color:var(--text-muted)">\u4E0A\u67B6\u226490\u5929</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-zero" onclick="clickKPI(\'zero\')"><div class="label">\u5B8C\u5168\u65AD\u8D27 (\u5E93\u5B58=0)</div><div class="value" style="color:var(--red);font-weight:700">' + zero + '</div><div style="font-size:10px;color:var(--text-muted)">FBA+PO\u5747\u65E0\u5E93\u5B58</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">\u5373\u5C06\u65AD\u8D27 &lt;1</div><div class="value" style="color:var(--red);font-weight:700">' + dead + '</div><div style="font-size:10px;color:var(--text-muted)">\u53EF\u7528\u5E93\u9500\u6BD4 0~1</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-nosale" onclick="clickKPI(\'nosale\')"><div class="label">\u0030\u52A8\u9500</div><div class="value" style="color:#b45309;font-weight:700">' + nosale + '</div><div style="font-size:10px;color:var(--text-muted)">\u6709\u5E93\u5B58\u4F46\u8FD130\u5929\u65E0\u9500\u91CF</div></div>' +
