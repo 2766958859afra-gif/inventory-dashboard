@@ -1046,6 +1046,8 @@ function fullRatio(i) {
 }
 function getValue(i, key) {
     var m = {
+        fba_sellable: sn(i.fba_sellable),
+        fba_transfer: sn(i.fba_transfer),
         fba_avail: sn(i.fba_avail), fba_inbound: sn(i.fba_inbound),
         po_avail: sn(i.po_avail), po_inbound: sn(i.po_inbound),
         overseas_avail: sn(i.overseas_avail), local_avail: sn(i.local_avail),
@@ -1059,6 +1061,7 @@ function getValue(i, key) {
 }
 
 var RATIO_COLS = [
+    {k:'fba_sellable', l:'FBA\u53EF\u552E'}, {k:'fba_transfer', l:'FBA\u63A5\u6536\u8F6C\u8FD0'},
     {k:'fba_avail', l:'FBA\u53EF\u7528'}, {k:'fba_inbound', l:'FBA\u5728\u9014'},
     {k:'po_avail', l:'PO\u5728\u5E93'}, {k:'po_inbound', l:'PO\u5728\u9014'},
     {k:'overseas_avail', l:'\u6D77\u5916\u4ED3'}, {k:'local_avail', l:'\u672C\u5730'},
@@ -1216,6 +1219,7 @@ function renderRatio() {
             var er = effRatio(i);
             if (rf === 'dead') return !isUnsold(i) && i.is_new !== 1 && effRatio(i) >= 0 && effRatio(i) < 1;
             if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
+            if (rf === 'transfer') return sn(i.fba_transfer) > 0;
             if (rf === 'unsold') return isUnsold(i);
             if (rf === 'newitem') return !isUnsold(i) && i.is_new === 1;
             if (rf === 'zero') return !isUnsold(i) && i.is_new !== 1 && isOutOfStock(i);
@@ -1229,6 +1233,11 @@ function renderRatio() {
     
     // Compute KPI counts from 筛选后数据（无 rf 影响）
     var zero = 0, nosale = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0, nNew = 0, nUnsold = 0;
+    var transferSum = 0, nTransfer = 0;
+    baseD.forEach(function(i){
+        var g = sn(i.fba_transfer);
+        if (g > 0) { transferSum += g; nTransfer++; }
+    });
     baseD.forEach(function(i) {
         // 未上架（从未到过FBA）→ 不参与库销比评价
         if (isUnsold(i)) { nUnsold++; return; }
@@ -1246,6 +1255,7 @@ function renderRatio() {
     });
     
     document.getElementById('ratioKpi').innerHTML =
+        '<div class="kpi-card kpi-clickable" id="kpi-transfer" onclick="clickKPI(\'transfer\')"><div class="label">\uD83D\uDE9A FBA\u63A5\u6536\u8F6C\u8FD0</div><div class="value" style="color:#c7484f;font-weight:700">' + fc(transferSum) + '</div><div style="font-size:10px;color:var(--text-muted)">\u53EF\u7528\u4F46\u4E0D\u53EF\u552E（' + nTransfer + ' SKU）</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-unsold" onclick="clickKPI(\'unsold\')"><div class="label">\u23F3\u672A\u4E0A\u67B6</div><div class="value" style="color:#8899cc;font-weight:700">' + nUnsold + '</div><div style="font-size:10px;color:var(--text-muted)">\u4ECE\u672A\u5230\u8FC7FBA</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-new" onclick="clickKPI(\'newitem\')"><div class="label">\uD83C\uDD95\u65B0\u54C1</div><div class="value" style="color:#b45309;font-weight:700">' + nNew + '</div><div style="font-size:10px;color:var(--text-muted)">\u4E0A\u67B6\u226490\u5929</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-zero" onclick="clickKPI(\'zero\')"><div class="label">\u5B8C\u5168\u65AD\u8D27 (\u5E93\u5B58=0)</div><div class="value" style="color:var(--red);font-weight:700">' + zero + '</div><div style="font-size:10px;color:var(--text-muted)">FBA+PO\u5747\u65E0\u5E93\u5B58</div></div>' +
