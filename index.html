@@ -503,20 +503,23 @@ function renderSumCharts(){
     // 饼图改为「库销比区间分布」（SKU 数量占比，有业务含义）
     // 之前的饼图直接画 5 个库销比数值，扇区大小无意义 → 已修正
     var bands = [
-        {lb:'断货<1', v:0, c:'#c7484f'},
+        {lb:'完全断货', v:0, c:'#c7484f'},
+        {lb:'即将断货<1', v:0, c:'#e07070'},
+        {lb:'0动销', v:0, c:'#b45309'},
         {lb:'风险1-2', v:0, c:'#e5cf83'},
         {lb:'正常2-4', v:0, c:'#2c855b'},
         {lb:'偏慢4-7', v:0, c:'#8899cc'},
         {lb:'偏高>7', v:0, c:'#3559c7'}
     ];
     D.items.forEach(function(i){
+        if (isOutOfStock(i)) { bands[0].v++; return; }
+        if (sn(i.sales_30d) <= 0) { bands[2].v++; return; }
         var r = effRatio(i);
-        if (r <= 0) return;                       // 无销量不计入
-        if (r < 1) bands[0].v++;
-        else if (r < 2) bands[1].v++;
-        else if (r < 4) bands[2].v++;
-        else if (r < 7) bands[3].v++;
-        else bands[4].v++;
+        if (r < 1) bands[1].v++;
+        else if (r < 2) bands[3].v++;
+        else if (r < 4) bands[4].v++;
+        else if (r < 7) bands[5].v++;
+        else bands[6].v++;
     });
     var pe = document.getElementById('ratioPie'); if (!pe) return;
     var tot = bands.reduce(function(a,b){return a+b.v},0) || 1;
@@ -1178,6 +1181,7 @@ function renderRatio() {
             if (rf === 'dead') return effRatio(i) < 1;
             if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
             if (rf === 'zero') return isOutOfStock(i);
+            if (rf === 'nosale') return !isOutOfStock(i) && sn(i.sales_30d) <= 0;
             if (rf === 'healthy') return sn(i.sales_30d) > 0 && er >= 2 && er < 4;
             if (rf === 'slow') return sn(i.sales_30d) > 0 && er >= 4 && er < 7;
             if (rf === 'high') return sn(i.sales_30d) > 0 && er >= 7;
@@ -1186,11 +1190,13 @@ function renderRatio() {
     }
     
     // Compute KPI counts from 筛选后数据（无 rf 影响）
-    var zero = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
+    var zero = 0, nosale = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
     baseD.forEach(function(i) {
-        if (isOutOfStock(i)) { zero++; return; }        // 完全断货（可用库存=0）
+        if (isOutOfStock(i)) { zero++; return; }                  // 完全断货（可用库存=0）
+        var sale = sn(i.sales_30d);
+        if (sale <= 0) { nosale++; return; }                       // 0动销（有库存但无销量）
         var er = effRatio(i);
-        if (er < 1) dead++;                              // 即将断货（可用库销比<1）
+        if (er < 1) dead++;                                        // 即将断货
         else if (er < 2) risk++;
         else if (er < 4) healthy++;
         else if (er < 7) slow++;
@@ -1200,6 +1206,7 @@ function renderRatio() {
     document.getElementById('ratioKpi').innerHTML =
         '<div class="kpi-card kpi-clickable" id="kpi-zero" onclick="clickKPI(\'zero\')"><div class="label">\u5B8C\u5168\u65AD\u8D27 (\u5E93\u5B58=0)</div><div class="value" style="color:var(--red);font-weight:700">' + zero + '</div><div style="font-size:10px;color:var(--text-muted)">FBA+PO\u5747\u65E0\u5E93\u5B58</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">\u5373\u5C06\u65AD\u8D27 &lt;1</div><div class="value" style="color:var(--red);font-weight:700">' + dead + '</div><div style="font-size:10px;color:var(--text-muted)">\u53EF\u7528\u5E93\u9500\u6BD4 0~1</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-nosale" onclick="clickKPI(\'nosale\')"><div class="label">\u0030\u52A8\u9500</div><div class="value" style="color:#b45309;font-weight:700">' + nosale + '</div><div style="font-size:10px;color:var(--text-muted)">\u6709\u5E93\u5B58\u4F46\u8FD130\u5929\u65E0\u9500\u91CF</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-risk" onclick="clickKPI(\'risk\')"><div class="label">\u98CE\u9669 &lt;2</div><div class="value" style="color:var(--red)">' + risk + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-healthy" onclick="clickKPI(\'healthy\')"><div class="label">\u6B63\u5E38 2-4</div><div class="value" style="color:var(--green)">' + healthy + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-slow" onclick="clickKPI(\'slow\')"><div class="label">\u504F\u6162 4-7</div><div class="value" style="color:var(--orange)">' + slow + '</div></div>' +
