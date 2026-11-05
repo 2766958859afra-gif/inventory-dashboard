@@ -1419,7 +1419,7 @@ function renderScVc(){
         rows = rows.filter(function(i){
             var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
             if (!(sSC > 0 && sVC > 0)) return false;
-            var cart = (sSC >= sVC) ? 'SC' : 'VC';
+            var cart = i.cart_owner || ((sSC >= sVC) ? 'SC' : 'VC');
             var diff = scRatio(i) - vcRatio(i);
             return (diff > 2 && cart === 'VC') || (diff < -2 && cart === 'SC');
         });
@@ -1434,7 +1434,7 @@ function renderScVc(){
     function needOf(i) {
         var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
         if (!(sSC > 0 && sVC > 0)) return '';
-        var cart = (sSC >= sVC) ? 'SC' : 'VC';
+        var cart = i.cart_owner || ((sSC >= sVC) ? 'SC' : 'VC');   // 优先实抓
         var diff = scRatio(i) - vcRatio(i);
         if (diff > 2 && cart === 'VC') return 'SC';
         if (diff < -2 && cart === 'SC') return 'VC';
