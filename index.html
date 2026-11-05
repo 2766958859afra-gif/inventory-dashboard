@@ -2787,6 +2787,7 @@ function btrImportFile(inp){
             var cAsin = findCol(['ASIN']);
             var cSku  = findCol(['商编','SKU','商品编码']);
             var cFlag = findCol(['是否不来单','不来单']);
+            var cNote = findCol(['备注']);
             if(!cFlag){ alert('未找到「是否不来单」列。\n当前表头：'+keys.join(' / ')); return; }
             if(!cAsin && !cSku){ alert('未找到 ASIN 或 商编/SKU 列。\n当前表头：'+keys.join(' / ')); return; }
             // 建索引
@@ -2809,6 +2810,10 @@ function btrImportFile(inp){
                 if(!st[k]) st[k]={};
                 st[k].noPo = v;
                 vals[v] = (vals[v]||0)+1;
+                if(cNote){
+                    var nt = String(r[cNote]||'').trim();
+                    if(nt) st[k].note = nt;      // 备注非空才写，避免清空已有
+                }
                 hit++;
             });
             btrSave(st);
@@ -2816,7 +2821,8 @@ function btrImportFile(inp){
             var msg = '✅ 导入完成\n成功 '+hit+' 条';
             Object.keys(vals).forEach(function(v){ msg += '\n  '+v+': '+vals[v]; });
             if(miss.length) msg += '\n\n未匹配 '+miss.length+' 条（前5个）：\n'+miss.slice(0,5).join('\n');
-            msg += '\n\n数据已保存到本浏览器，下次打开仍然保留。';
+            if(cNote) msg += '\n\n（含备注列更新）';
+            msg += '\n\n已保存到本浏览器，下次打开仍然保留。\n只更新「是否不来单」和「备注」，不影响其他列。';
             alert(msg);
         } catch(err) {
             alert('导入失败：'+err.message);
@@ -2874,9 +2880,14 @@ function btrSet(k,f,v){var st=btrState();if(!st[k])st[k]={};st[k][f]=v;btrSave(s
 function exportBtrCSV(){
     if(!D||!D.items)return;
     var st=btrState();
+    // 跟随当前筛选（运营/品类），避免导出全量后误覆盖其他人的数据
+    var fq=(document.getElementById('fOpBtr')||{}).value||'';
+    var cq=(document.getElementById('fCatBtr')||{}).value||'';
     var lines=['\uFEFF类型,ASIN,商编,品类,运营,FBA库销比,PO在库,PO库销比,海外仓,海外仓在途,海外仓库销比,箱规,是否不来单,备注'];
     var rows=[];
     D.items.forEach(function(i){
+        if(fq && i.operator!==fq) return;
+        if(cq && i.category!==cq) return;
         var isVc=i.is_vc===1||sn(i.po_avail)>0||sn(i.po_inbound)>0;
         if(!isVc)return;
         if(sn(i.po_avail)<20&&sn(i.overseas_avail)>20)rows.push(['类型1',i]);
@@ -2889,7 +2900,7 @@ function exportBtrCSV(){
         lines.push([r[0],i.asin||'',i.sku||'',i.category||'',i.operator||'',fbaRatio(i).toFixed(1),sn(i.po_avail),poR(i).toFixed(1),sn(i.overseas_avail),sn(i.overseas_inbound),osR(i).toFixed(1),btrBox(i.sku),s.noPo||'',s.note||''].join(','));
     });
     var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
-    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='海外库存预警_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='海外库存预警'+(fq?'_'+fq:'')+(cq?'_'+cq:'')+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 
 
