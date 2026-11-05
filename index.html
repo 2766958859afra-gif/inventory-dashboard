@@ -2061,7 +2061,7 @@ function renderChange(){
         zh+='<div class="kpi-card"><div class="label">本周净滚入</div><div class="value" style="font-size:24px;color:var(--accent)">'+fsign(refill.reduce(function(s,i){return s+i._dS},0)+newBreak.reduce(function(s,i){return s+i._dS},0))+'</div><div style="font-size:11px;color:var(--text-muted)">回货 − 断货流失</div></div>';
         zh+='</div>';
         zh+='<div class="pivot-table-wrap" style="max-height:420px;overflow-x:auto"><table class="pivot-table" style="width:100%;font-size:11px"><thead><tr>';
-        zh+='<th>状态</th><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th style="border-left:2px solid var(--accent)">'+wkPrev+'库存</th><th>'+wkLabel+'库存</th><th>变化</th><th>30D销量</th><th style="border-left:2px solid var(--accent)">近7天入库</th><th>近30天入库</th><th>到货依据</th><th>在途合计</th><th>IFS待发货</th><th>建议动作</th></tr></thead><tbody>';
+        zh+='<th>状态</th><th>到货/流失渠道</th><th>运营</th><th>ASIN</th><th>商编</th><th>品类</th><th style="border-left:2px solid var(--accent)">'+wkPrev+'库存</th><th>'+wkLabel+'库存</th><th>变化</th><th>30D销量</th><th style="border-left:2px solid var(--accent)">近7天入库</th><th>近30天入库</th><th>到货依据</th><th>在途合计</th><th>采购在途</th><th>IFS待发货</th><th>建议动作</th></tr></thead><tbody>';
         ROWS.forEach(function(g){
             g.list.forEach(function(i){
                 var totIn=sn(i.fba_inbound)+sn(i.po_inbound)+sn(i.po_inbound_oms)+sn(i.overseas_inbound)+sn(i.purchase_inbound);
@@ -2069,6 +2069,18 @@ function renderChange(){
                         : g.k==='break' ? (totIn>0?'🚚 在途 '+Math.round(totIn)+'，跟进到货':'🚨 无在途，立即补货/海外仓调货')
                         : (totIn>0?'⏳ 在途 '+Math.round(totIn)+'，等待':'🚨 无补给，紧急备货');
                 zh+='<tr style="background:'+g.bg+'"><td style="font-weight:700;color:'+g.col+'">'+g.tag+'</td>';
+                var _ch='';
+                if(p){ var _df=sn(i.fba_avail)-sn(p.fa), _dp=sn(i.po_avail)-sn(p.pa);
+                    if(_df>0&&_dp>0)_ch='FBA+PO +'+Math.round(_df)+'/+'+Math.round(_dp);
+                    else if(_df>0)_ch='FBA '+(i._dS>=0?'+':'')+Math.round(_df);
+                    else if(_dp>0)_ch='PO '+(i._dS>=0?'+':'')+Math.round(_dp);
+                    else if(_df<0&&_dp<0)_ch='FBA'+Math.round(_df)+' PO'+Math.round(_dp);
+                    else if(_df<0)_ch='FBA '+Math.round(_df);
+                    else if(_dp<0)_ch='PO '+Math.round(_dp);
+                    else _ch='—';
+                } else _ch='—';
+                var _chCol = _ch.indexOf('+')>=0 ? '#2c855b' : (_ch.indexOf('-')>=0 ? '#c7484f' : 'var(--text-muted)');
+                zh+='<td style="font-size:10px;font-weight:600;color:'+_chCol+'">'+_ch+'</td>';
                 zh+='<td>'+(i.operator||'')+'</td><td>'+(i.asin?'<a href="https://www.amazon.com/dp/'+i.asin+'" target="_blank">'+i.asin+'</a>':'—')+'</td><td style="font-weight:600">'+i.sku+'</td><td>'+(i.category||'')+'</td>';
                 zh+='<td class="num" style="border-left:2px solid var(--accent)">'+fc(i._pS)+'</td><td class="num" style="font-weight:700">'+fc(i._nS)+'</td>';
                 zh+='<td class="num" style="'+fcol(i._dS)+';font-weight:700">'+fsign(i._dS)+'</td>';
@@ -2078,6 +2090,8 @@ function renderChange(){
                 zh+='<td class="num" style="'+(_a30b>0?'font-weight:600':'color:var(--text-muted)')+'">'+(_a30b>0?fc(_a30b):'—')+'</td>';
                 zh+='<td class="num" style="font-size:10px;color:var(--text-muted)">'+(i._why||('近7天入库 '+Math.round(i._a7||0)))+'</td>';
                 zh+='<td class="num">'+(totIn>0?fc(totIn):'<span style="color:var(--text-muted)">0</span>')+'</td>';
+                var _pu=sn(i.purchase_inbound);
+                zh+='<td class="num"'+(('+_pu')>0?' style="color:#b45309;font-weight:600"':' style="color:var(--text-muted)"')+'>'+(_pu>0?fc(_pu):'0')+'</td>';
                 zh+='<td class="num">'+fc(sn(i.ifs_pending))+'</td>';
                 zh+='<td style="font-size:11px">'+act+'</td></tr>';
             });
