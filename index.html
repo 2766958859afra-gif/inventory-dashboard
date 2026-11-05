@@ -993,12 +993,13 @@ function finishRatio(i) {
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound) + sn(i.po_avail) + sn(i.po_inbound) + sn(i.overseas_avail) + sn(i.overseas_inbound) + sn(i.local_avail)) / s : 0;
 }
 function effRatio(i) {
-    var f = fbaRatio(i), p = poRatio(i);
-    var fs = sn(i.fba_sales_30d), ps = sn(i.po_sales_30d);
-    if (fs > 0 && ps > 0) return Math.min(f, p);
-    if (fs > 0) return f;
-    if (ps > 0) return p;
-    return 0;
+    // 共同可用库销比（SC+VC 合并口径）= (FBA可用 + PO可用) / 总销量(SC+VC)
+    // <1 = 即将断货；可用库存=0 = 完全断货
+    var s = sn(i.sales_30d);
+    return s > 0 ? (sn(i.fba_avail) + sn(i.po_avail)) / s : 0;
+}
+function isOutOfStock(i) {           // 完全断货：FBA 与 PO 可用均为 0
+    return (sn(i.fba_avail) + sn(i.po_avail)) === 0;
 }
 function fullRatio(i) {
     var s = sn(i.sales_30d);
@@ -1176,6 +1177,7 @@ function renderRatio() {
             var er = effRatio(i);
             if (rf === 'dead') return effRatio(i) < 1;
             if (rf === 'risk') return sn(i.sales_30d) > 0 && er < 2;
+            if (rf === 'zero') return isOutOfStock(i);
             if (rf === 'healthy') return sn(i.sales_30d) > 0 && er >= 2 && er < 4;
             if (rf === 'slow') return sn(i.sales_30d) > 0 && er >= 4 && er < 7;
             if (rf === 'high') return sn(i.sales_30d) > 0 && er >= 7;
@@ -1184,10 +1186,11 @@ function renderRatio() {
     }
     
     // Compute KPI counts from 筛选后数据（无 rf 影响）
-    var dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
+    var zero = 0, dead = 0, risk = 0, healthy = 0, slow = 0, high = 0;
     baseD.forEach(function(i) {
+        if (isOutOfStock(i)) { zero++; return; }        // 完全断货（可用库存=0）
         var er = effRatio(i);
-        if (er < 1) dead++;
+        if (er < 1) dead++;                              // 即将断货（可用库销比<1）
         else if (er < 2) risk++;
         else if (er < 4) healthy++;
         else if (er < 7) slow++;
@@ -1195,7 +1198,8 @@ function renderRatio() {
     });
     
     document.getElementById('ratioKpi').innerHTML =
-        '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">\u65AD\u8D27 &lt;1</div><div class="value" style="color:var(--red);font-weight:700">' + dead + '</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-zero" onclick="clickKPI(\'zero\')"><div class="label">\u5B8C\u5168\u65AD\u8D27 (\u5E93\u5B58=0)</div><div class="value" style="color:var(--red);font-weight:700">' + zero + '</div><div style="font-size:10px;color:var(--text-muted)">FBA+PO\u5747\u65E0\u5E93\u5B58</div></div>' +
+        '<div class="kpi-card kpi-clickable" id="kpi-dead" onclick="clickKPI(\'dead\')"><div class="label">\u5373\u5C06\u65AD\u8D27 &lt;1</div><div class="value" style="color:var(--red);font-weight:700">' + dead + '</div><div style="font-size:10px;color:var(--text-muted)">\u53EF\u7528\u5E93\u9500\u6BD4 0~1</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-risk" onclick="clickKPI(\'risk\')"><div class="label">\u98CE\u9669 &lt;2</div><div class="value" style="color:var(--red)">' + risk + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-healthy" onclick="clickKPI(\'healthy\')"><div class="label">\u6B63\u5E38 2-4</div><div class="value" style="color:var(--green)">' + healthy + '</div></div>' +
         '<div class="kpi-card kpi-clickable" id="kpi-slow" onclick="clickKPI(\'slow\')"><div class="label">\u504F\u6162 4-7</div><div class="value" style="color:var(--orange)">' + slow + '</div></div>' +
