@@ -216,6 +216,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <h2 style="font-size:14px;font-weight:600;margin:0">🛒 SC vs VC 库销比对比</h2>
 <select class="filter-select" id="fScVcOp" onchange="renderScVc()" style="margin-left:8px"><option value="">全部运营</option></select>
 <select class="filter-select" id="fChanScvc" onchange="renderScVc()" style="margin-left:6px"><option value="">全部链路</option><option value="SC">仅SC</option><option value="VC">仅VC</option><option value="dual">SC+VC双渠道</option></select>
+<select class="filter-select" id="fNeedScvc" onchange="renderScVc()" style="margin-left:6px"><option value="">全部</option><option value="need">只看需要转移</option></select>
 <span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 库销比差异大 → 建议转移购物车</span>
 </div>
 <div class="asin-table-wrap" style="max-height:480px"><table class="asin-table"><thead id="scvcHead"></thead><tbody id="scvcBody"></tbody></table></div>
@@ -1393,6 +1394,8 @@ function renderScVc(){
     var op = opSel ? opSel.value : '';
     function hasF(i){ return sn(i.fba_sales_30d) > 0 || sn(i.fba_avail) > 0; }
     function hasP(i){ return sn(i.po_sales_30d) > 0 || sn(i.po_avail) > 0; }
+    var ndSel = document.getElementById('fNeedScvc');
+    var ndWant = ndSel ? ndSel.value : '';
     var chSel = document.getElementById('fChanScvc');
     var chWant = chSel ? chSel.value : '';
     var rows = D.items.filter(function(i){
@@ -1415,18 +1418,34 @@ function renderScVc(){
         if (d !== 0) return d;
         return sn(b.sales_30d) - sn(a.sales_30d);
     });
+    if (ndWant === 'need') {
+        rows = rows.filter(function(i){
+            var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
+            if (!(sSC > 0 && sVC > 0)) return false;
+            var cart = (sSC >= sVC) ? 'SC' : 'VC';
+            var diff = scRatio(i) - vcRatio(i);
+            return (diff > 2 && cart === 'VC') || (diff < -2 && cart === 'SC');
+        });
+    }
     rows = rows.slice(0, 300);
     function scRatio(i){ var s = sn(i.fba_sales_30d); return s > 0 ? sn(i.fba_avail)/s : 0; }
     function vcRatio(i){ var s = sn(i.po_sales_30d); return s > 0 ? sn(i.po_avail)/s : 0; }
     function osRatio(i){ var s = sn(i.fba_sales_30d) + sn(i.po_sales_30d); return s > 0 ? sn(i.overseas_avail)/s : 0; }
-    document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th title="FBA仓181天以上超期库存">FBA超期</th><th title="库龄超90天PO库存">PO超期</th><th>海外仓在途</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th><th>链路</th></tr>';
+    document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th title="FBA仓181天以上超期库存">FBA超期</th><th title="库龄超90天PO库存">PO超期</th><th>海外仓在途</th><th title="近30天实际成交方（销量=购物车归属）">购物车</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th><th>链路</th></tr>';
     // 顶部对比卡：SC vs VC 平均库销比 + 建议转移数
-    var avgSc = 0, avgVc = 0, toSc = 0, toVc = 0, bal = 0;
+    var toSc = 0, toVc = 0, bal = 0;
+    function needOf(i) {
+        var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
+        if (!(sSC > 0 && sVC > 0)) return '';
+        var cart = (sSC >= sVC) ? 'SC' : 'VC';
+        var diff = scRatio(i) - vcRatio(i);
+        if (diff > 2 && cart === 'VC') return 'SC';
+        if (diff < -2 && cart === 'SC') return 'VC';
+        return '';
+    }
     rows.forEach(function(i){
-        var sr = scRatio(i), vr = vcRatio(i);
-        avgSc += sr; avgVc += vr;
-        var diff = sr - vr;
-        if (diff > 2) toSc++; else if (diff < -2) toVc++; else bal++;
+        var nd = needOf(i);
+        if (nd === 'SC') toSc++; else if (nd === 'VC') toVc++; else bal++;
     });
     var n = rows.length || 1;
     avgSc = avgSc / n; avgVc = avgVc / n;
@@ -1444,11 +1463,18 @@ function renderScVc(){
     var body = '';
     rows.forEach(function(i){
         var sr = scRatio(i), vr = vcRatio(i), orr = osRatio(i);
-        var diff = sr - vr, suggest, sBadge;
-        if (diff > 2) { suggest = '<span style="background:rgba(199,72,79,.12);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转SC消化</span>'; sBadge = 'background:rgba(53,89,199,.06)'; }
-        else if (diff < -2) { suggest = '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转VC消化</span>'; sBadge = 'background:rgba(44,133,91,.06)'; }
-        else if (!hasF(i) || !hasP(i)) { suggest = '<span style="color:var(--text-muted);font-size:11px">单渠道无对比</span>'; sBadge = ''; }
-        else { suggest = '<span style="color:var(--text-muted);font-size:11px">均衡</span>'; sBadge = ''; }
+        var diff = sr - vr, suggest = '', sBadge = '';
+        var sSC = sn(i.fba_sales_30d), sVC = sn(i.po_sales_30d);
+        // 购物车活跃方 = 近30天实际成交方（销量）：两边都有销量时取大的
+        var cart = (sSC > 0 && sVC > 0) ? (sSC >= sVC ? 'SC' : 'VC') : (sSC > 0 ? 'SC' : (sVC > 0 ? 'VC' : ''));
+        // 只有「双渠道都有销量」才有转移意义：购物车不在积压方 → 才建议转
+        var need = '';
+        if (sSC > 0 && sVC > 0) {
+            if (diff > 2 && cart === 'VC') need = 'SC';        // SC积压 但购物车在VC → 转SC
+            else if (diff < -2 && cart === 'SC') need = 'VC'; // VC积压 但购物车在SC → 转VC
+        }
+        if (need === 'SC') { suggest = '<span style="background:rgba(53,89,199,.12);color:#3559c7;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转SC消化</span>'; sBadge = 'background:rgba(53,89,199,.06)'; }
+        else if (need === 'VC') { suggest = '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转VC消化</span>'; sBadge = 'background:rgba(44,133,91,.06)'; }
         // 有超期库存 → 追加提示（看渠道对比时同步发现）
         var _od = sn(i.fba_age180) + sn(i.po_age90);
         if (_od > 0) {
@@ -1461,6 +1487,7 @@ function renderScVc(){
             '<td class="num"' + (sn(i.fba_age180)>0 ? ' style="color:#c7484f;font-weight:700"' : '') + '>' + (sn(i.fba_age180)>0 ? fc(i.fba_age180) : '-') + '</td>' +
             '<td class="num"' + (sn(i.po_age90)>0 ? ' style="color:#b45309;font-weight:700"' : '') + '>' + (sn(i.po_age90)>0 ? fc(i.po_age90) : '-') + '</td>' +
             '<td class="num">' + fc(i.overseas_inbound) + '</td>' +
+            '<td style="text-align:center">' + (cart === 'SC' ? '<span style="background:rgba(53,89,199,.12);color:#3559c7;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">SC</span>' : cart === 'VC' ? '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:700">VC</span>' : '<span style="color:var(--text-muted);font-size:11px">—</span>') + '</td>' +
             '<td class="num" style="color:#3559c7;font-weight:600">' + f2(sr) + '</td><td class="num" style="color:#2c855b;font-weight:600">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td><td>' + chanBadge(i) + '</td></tr>';
     });
     document.getElementById('scvcBody').innerHTML = body;
