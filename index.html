@@ -816,6 +816,10 @@ function renderStock() {
         kpiHtml += '<div class="kpi-card"><div class="label" style="color:' + s.c + '">' + s.lb + '</div><div class="value">' + Math.round(segTotals[s.k]).toLocaleString('en-US') + '</div></div>';
     });
     kpiHtml += '<div class="kpi-card"><div class="label">IFS待发</div><div class="value">' + Math.round(d.reduce(function(a,i){return a+sn(i.ifs_pending)},0)).toLocaleString('en-US') + '</div></div>';
+    // 近30天实销（SC/VC 拆分）
+    var saleTot = 0, scSale = 0, vcSale = 0;
+    d.forEach(function(i){ saleTot += sn(i.sales_30d); scSale += sn(i.fba_sales_30d); vcSale += sn(i.po_sales_30d); });
+    kpiHtml += '<div class="kpi-card"><div class="label">\u8FD130\u5929\u5B9E\u9500</div><div class="value" style="color:#16857a;font-weight:700">' + Math.round(saleTot).toLocaleString('en-US') + '</div><div style="font-size:10px;color:var(--text-muted)">SC ' + Math.round(scSale).toLocaleString('en-US') + ' / VC ' + Math.round(vcSale).toLocaleString('en-US') + '</div></div>';
     document.getElementById('stockKpi').innerHTML = kpiHtml;
     
     // Aggregate by operator（按口径段）
