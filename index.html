@@ -500,19 +500,33 @@ function renderSumCharts(){
         T.s += sn(i.sales_30d); T.fs += sn(i.fba_sales_30d); T.ps += sn(i.po_sales_30d);
     });
     function ratio(n, m){ return m > 0 ? +(n / m).toFixed(2) : 0; }
-    var pies = [
-        {lb:'FBA库销比', v: ratio(T.fba, T.fs)},
-        {lb:'PO库销比', v: ratio(T.po, T.ps)},
-        {lb:'可用库销比', v: ratio(T.fba + T.po, T.s)},
-        {lb:'成品库销比', v: ratio(T.fba + T.po + T.os, T.s)},
-        {lb:'全链路库销比', v: ratio(T.fba + T.po + T.os + T.lo + T.pu, T.s)}
+    // 饼图改为「库销比区间分布」（SKU 数量占比，有业务含义）
+    // 之前的饼图直接画 5 个库销比数值，扇区大小无意义 → 已修正
+    var bands = [
+        {lb:'断货<1', v:0, c:'#c7484f'},
+        {lb:'风险1-2', v:0, c:'#e5cf83'},
+        {lb:'正常2-4', v:0, c:'#2c855b'},
+        {lb:'偏慢4-7', v:0, c:'#8899cc'},
+        {lb:'偏高>7', v:0, c:'#3559c7'}
     ];
+    D.items.forEach(function(i){
+        var r = effRatio(i);
+        if (r <= 0) return;                       // 无销量不计入
+        if (r < 1) bands[0].v++;
+        else if (r < 2) bands[1].v++;
+        else if (r < 4) bands[2].v++;
+        else if (r < 7) bands[3].v++;
+        else bands[4].v++;
+    });
     var pe = document.getElementById('ratioPie'); if (!pe) return;
+    var tot = bands.reduce(function(a,b){return a+b.v},0) || 1;
     charts['ratioPie'] = new Chart(pe, {
         type: 'doughnut',
-        data: {labels: pies.map(function(x){return x.lb}), datasets: [{data: pies.map(function(x){return x.v}), backgroundColor: colors.slice(0,5), borderWidth: 2, borderColor: '#fff'}]},
-        options: {responsive:true, maintainAspectRatio:false, cutout:'55%',
-            plugins:{legend:{position:'right', labels:{font:{size:10}, boxWidth:12}}, tooltip:{callbacks:{label:function(ctx){return ' '+ctx.label+': '+ctx.raw}}}}
+        data: {labels: bands.map(function(x){return x.lb+' ('+x.v+')'}),
+               datasets: [{data: bands.map(function(x){return x.v}), backgroundColor: bands.map(function(x){return x.c}), borderWidth: 2, borderColor: '#fff'}]},
+        options: {responsive:true, maintainAspectRatio:false, cutout:'52%',
+            plugins:{legend:{position:'right', labels:{font:{size:10}, boxWidth:12}},
+                     tooltip:{callbacks:{label:function(ctx){return ' '+ctx.label+': '+ctx.raw+' 个 ('+(ctx.raw/tot*100).toFixed(1)+'%)'}}}}
         }
     });
 }
