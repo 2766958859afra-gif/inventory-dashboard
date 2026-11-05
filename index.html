@@ -215,6 +215,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;flex-wrap:wrap">
 <h2 style="font-size:14px;font-weight:600;margin:0">🛒 SC vs VC 库销比对比</h2>
 <select class="filter-select" id="fScVcOp" onchange="renderScVc()" style="margin-left:8px"><option value="">全部运营</option></select>
+<select class="filter-select" id="fChanScvc" onchange="renderScVc()" style="margin-left:6px"><option value="">全部链路</option><option value="SC">仅SC</option><option value="VC">仅VC</option><option value="dual">SC+VC双渠道</option></select>
 <span style="margin-left:auto;font-size:11px;color:var(--text-muted)">SC=FBA链路 | VC=PO链路 | 库销比差异大 → 建议转移购物车</span>
 </div>
 <div class="asin-table-wrap" style="max-height:480px"><table class="asin-table"><thead id="scvcHead"></thead><tbody id="scvcBody"></tbody></table></div>
@@ -1392,9 +1393,17 @@ function renderScVc(){
     var op = opSel ? opSel.value : '';
     function hasF(i){ return sn(i.fba_sales_30d) > 0 || sn(i.fba_avail) > 0; }
     function hasP(i){ return sn(i.po_sales_30d) > 0 || sn(i.po_avail) > 0; }
+    var chSel = document.getElementById('fChanScvc');
+    var chWant = chSel ? chSel.value : '';
     var rows = D.items.filter(function(i){
         if (!hasF(i) && !hasP(i)) return false;      // 至少有一个渠道
         if (op && i.operator !== op) return false;
+        if (chWant) {
+            var dual = hasF(i) && hasP(i);
+            if (chWant === 'dual' && !dual) return false;
+            if (chWant === 'SC' && (!hasF(i) || hasP(i))) return false;
+            if (chWant === 'VC' && (!hasP(i) || hasF(i))) return false;
+        }
         return true;
     });
     // 双渠道优先显示（可对比的排前面）
