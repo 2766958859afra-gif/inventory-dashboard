@@ -1418,8 +1418,10 @@ function renderScVc(){
     });
     var n = rows.length || 1;
     avgSc = avgSc / n; avgVc = avgVc / n;
-    var diff = avgSc - avgVc;
-    var trend = Math.abs(diff) > 0.5 ? (diff > 0 ? '<span style="color:var(--red);font-weight:700">SC 偏高 → 建议转移购物车消化 SC</span>' : '<span style="color:var(--green);font-weight:700">VC 偏高 → 建议转移购物车消化 VC</span>') : '<span style="color:var(--text-muted)">SC/VC 均衡</span>';
+    // 差异判断改为按 SKU 计数（不再看平均库销比）
+    var trend = (toSc > toVc * 1.2) ? '<span style="color:var(--red);font-weight:700">SC 侧压力大 → 建议转SC消化</span>'
+              : (toVc > toSc * 1.2) ? '<span style="color:var(--green);font-weight:700">VC 侧压力大 → 建议转VC消化</span>'
+              : '<span style="color:var(--text-muted)">SC/VC 相对均衡</span>';
     var scvcKpi = document.getElementById('scvcKpi');
     if (scvcKpi) scvcKpi.innerHTML =
         '<div class="kpi-row" style="margin-bottom:10px">' +
