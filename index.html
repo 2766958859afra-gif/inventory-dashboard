@@ -1447,9 +1447,7 @@ function renderScVc(){
         var nd = needOf(i);
         if (nd === 'SC') toSc++; else if (nd === 'VC') toVc++; else bal++;
     });
-    var n = rows.length || 1;
-    avgSc = avgSc / n; avgVc = avgVc / n;
-    // 差异判断改为按 SKU 计数（不再看平均库销比）
+    // 差异判断按 SKU 计数（不看平均库销比）
     var trend = (toSc > toVc * 1.2) ? '<span style="color:var(--red);font-weight:700">SC 侧压力大 → 建议转SC消化</span>'
               : (toVc > toSc * 1.2) ? '<span style="color:var(--green);font-weight:700">VC 侧压力大 → 建议转VC消化</span>'
               : '<span style="color:var(--text-muted)">SC/VC 相对均衡</span>';
