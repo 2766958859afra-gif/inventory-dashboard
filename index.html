@@ -2070,7 +2070,8 @@ function renderChange(){
                         : (totIn>0?'⏳ 在途 '+Math.round(totIn)+'，等待':'🚨 无补给，紧急备货');
                 zh+='<tr style="background:'+g.bg+'"><td style="font-weight:700;color:'+g.col+'">'+g.tag+'</td>';
                 var _ch='';
-                if(p){ var _df=sn(i.fba_avail)-sn(p.fa), _dp=sn(i.po_avail)-sn(p.pa);
+                var _pp = prevM[i.sku];
+                if(_pp){ var _df=sn(i.fba_avail)-sn(_pp.fa), _dp=sn(i.po_avail)-sn(_pp.pa);
                     if(_df>0&&_dp>0)_ch='FBA+PO +'+Math.round(_df)+'/+'+Math.round(_dp);
                     else if(_df>0)_ch='FBA '+(i._dS>=0?'+':'')+Math.round(_df);
                     else if(_dp>0)_ch='PO '+(i._dS>=0?'+':'')+Math.round(_dp);
