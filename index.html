@@ -157,7 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <!-- Panel 1: 进销存总览 -->
 <div class="page active" id="pg-pivot">
 <div class="page-header"><h1>进销存总览</h1><span id="clock" class="date" style="font-size:12px;color:var(--accent);font-weight:600"></span><span id="ts0" class="date">加载中...</span>
-<div class="controls"><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
+<div class="controls"><select class="filter-select" id="fOpPivot" onchange="renderPivot()"><option value="">全部运营</option></select><button class="btn-sm" onclick="openDoc()" title="说明文档">📖 说明文档</button><button class="btn-sm" onclick="openFeedback()" title="意见反馈" style="border-color:var(--orange);color:var(--orange)">📮 意见反馈</button><span id="ds"></span><button class="btn-sm" onclick="exportPivotCSV()">📥 导出CSV</button><button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">↺ 重置</button></div></div>
 <div class="page-content">
 <div id="import-section"><div class="import-head" onclick="toggleImport()"><h2 style="margin:0">导入数据（总表）</h2><span id="importArrow" style="font-size:10px;color:var(--text-muted)">▼ 展开</span></div>
 <div id="import-body" style="display:none">
@@ -642,6 +642,18 @@ function destroyCharts() {
 function renderPivot() {
     if (!D || !D.items) return;
     var items = D.items.slice();
+    // 运营筛选
+    var opSel = document.getElementById('fOpPivot');
+    if (opSel) {
+        if (opSel.options.length <= 1) {
+            var oos = {};
+            D.items.forEach(function(i){ if (i.operator) oos[i.operator] = true; });
+            var oh = '<option value="">\u5168\u90E8\u8FD0\u8425</option>';
+            Object.keys(oos).sort().forEach(function(o){ oh += '<option>' + o + '</option>'; });
+            opSel.innerHTML = oh;
+        }
+        if (opSel.value) items = items.filter(function(i){ return i.operator === opSel.value; });
+    }
     
     // Category pivot
     var catData = {};
