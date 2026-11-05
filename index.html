@@ -173,7 +173,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","M
 <span style="margin-left:auto;font-size:11px;color:var(--text-muted)" id="sumDesc"></span></div>
 <div class="chart-grid">
 <div class="chart-area"><h2>各品类·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumCat"></canvas></div></div>
-<div class="chart-area"><h2>库销比分布</h2><div class="chart-wrap" style="height:260px"><canvas id="ratioPie"></canvas></div></div>
+<div class="chart-area"><h2>库销比分布</h2><div class="chart-wrap" style="height:240px"><canvas id="ratioPie"></canvas></div><div style="font-size:10px;color:var(--text-muted);line-height:1.5;margin-top:4px">注：<b>⏳未上架</b>（从未到过FBA）与 <b>🆕新品≤90天</b> 为独立门类，<u>不参与库销比评价、不计入断货</u>；完全断货/即将断货/0动销均指<b>在售老品</b>。</div></div>
 </div></div>
 <div class="pivot-block" id="catBlock"><p>等待数据...</p></div>
 <div class="pivot-block" style="margin-top:12px"><div class="chart-area" style="margin-bottom:12px"><h2>各运营·库存与销量</h2><div class="chart-wrap" style="height:260px"><canvas id="sumOp"></canvas></div></div><div id="opBlock"><p>等待数据...</p></div></div>
@@ -502,24 +502,29 @@ function renderSumCharts(){
     function ratio(n, m){ return m > 0 ? +(n / m).toFixed(2) : 0; }
     // 饼图改为「库销比区间分布」（SKU 数量占比，有业务含义）
     // 之前的饼图直接画 5 个库销比数值，扇区大小无意义 → 已修正
+    // 9 档：未上架 / 新品 作为独立门类，不混入完全断货
     var bands = [
-        {lb:'完全断货', v:0, c:'#c7484f'},
-        {lb:'即将断货<1', v:0, c:'#e07070'},
-        {lb:'0动销', v:0, c:'#b45309'},
-        {lb:'风险1-2', v:0, c:'#e5cf83'},
-        {lb:'正常2-4', v:0, c:'#2c855b'},
-        {lb:'偏慢4-7', v:0, c:'#8899cc'},
-        {lb:'偏高>7', v:0, c:'#3559c7'}
+        {lb:'\u23F3\u672A\u4E0A\u67B6', v:0, c:'#a8b0c8'},
+        {lb:'\uD83C\uDD95\u65B0\u54C1\u226490\u5929', v:0, c:'#d99a4e'},
+        {lb:'\u5B8C\u5168\u65AD\u8D27', v:0, c:'#c7484f'},
+        {lb:'\u5373\u5C06\u65AD\u8D27<1', v:0, c:'#e07070'},
+        {lb:'0\u52A8\u9500', v:0, c:'#b45309'},
+        {lb:'\u98CE\u96691-2', v:0, c:'#e5cf83'},
+        {lb:'\u6B63\u5E382-4', v:0, c:'#2c855b'},
+        {lb:'\u504F\u61624-7', v:0, c:'#8899cc'},
+        {lb:'\u504F\u9AD8>7', v:0, c:'#3559c7'}
     ];
     D.items.forEach(function(i){
-        if (isOutOfStock(i)) { bands[0].v++; return; }
-        if (sn(i.sales_30d) <= 0) { bands[2].v++; return; }
+        if (isUnsold(i)) { bands[0].v++; return; }          // 未上架（从未到FBA）
+        if (i.is_new === 1) { bands[1].v++; return; }       // 新品≤90天（铺货期）
+        if (isOutOfStock(i)) { bands[2].v++; return; }      // 完全断货（在售老品库存=0）
+        if (sn(i.sales_30d) <= 0) { bands[4].v++; return; }
         var r = effRatio(i);
-        if (r < 1) bands[1].v++;
-        else if (r < 2) bands[3].v++;
-        else if (r < 4) bands[4].v++;
-        else if (r < 7) bands[5].v++;
-        else bands[6].v++;
+        if (r < 1) bands[3].v++;
+        else if (r < 2) bands[5].v++;
+        else if (r < 4) bands[6].v++;
+        else if (r < 7) bands[7].v++;
+        else bands[8].v++;
     });
     var pe = document.getElementById('ratioPie'); if (!pe) return;
     var tot = bands.reduce(function(a,b){return a+b.v},0) || 1;
