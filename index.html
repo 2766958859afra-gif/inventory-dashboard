@@ -1663,7 +1663,7 @@ function renderAlerts() {
         gr.slice(0,300).forEach(function(r){
             var j=r.i,rt=r.rt,s30=sn(j.sales_30d);
             var hot=function(v){return s30>0&&v<2?' style="color:var(--red);font-weight:bold"':''};
-            html+='<tr><td>'+j.sku+'</td><td>'+(j.asin?'<a href="https://www.amazon.com/dp/'+j.asin+'" target="_blank">'+j.asin+'</a>':'')+'</td><td>'+(j.category||'')+'</td><td>'+(j.operator||'')+'</td><td>'+channelLabel(r.ch)+'</td>';
+            html+='<tr><td>'+j.sku+cpIcon(j.sku)+'</td><td>'+(j.asin?'<a href="https://www.amazon.com/dp/'+j.asin+'" target="_blank">'+j.asin+'</a>'+cpIcon(j.asin):'')+'</td><td>'+(j.category||'')+'</td><td>'+(j.operator||'')+'</td><td>'+channelLabel(r.ch)+'</td>';
             html+='<td class="num">'+fc(j.fba_avail)+'</td><td class="num">'+fc(j.fba_inbound)+'</td><td class="num">'+fc(j.po_avail)+'</td><td class="num">'+fc(j.po_inbound)+'</td>';
             html+='<td class="num">'+fc(j.overseas_avail)+'</td><td class="num">'+fc(j.overseas_inbound)+'</td><td class="num">'+fc(j.local_avail)+'</td><td class="num">'+fc(j.purchase_inbound)+'</td><td class="num">'+fc(s30)+'</td>';
             html+='<td class="num"'+hot(rt.fbr)+'>'+f2(rt.fbr)+'</td><td class="num"'+hot(rt.pbr)+'>'+f2(rt.pbr)+'</td><td class="num"'+hot(rt.abr)+'>'+f2(rt.abr)+'</td><td class="num">'+f2(rt.fin)+'</td><td class="num">'+f2(rt.ofr)+'</td><td class="num">'+f2(rt.flr)+'</td></tr>';
