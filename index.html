@@ -2856,7 +2856,7 @@ function renderBtr(){
                 th+='<td class="num" style="color:var(--red);font-weight:700">'+fc(sn(i.po_avail))+'</td><td class="num">'+poR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+fc(sn(i.overseas_avail))+'</td><td class="num">'+fc(sn(i.overseas_inbound))+'</td><td class="num">'+osR(i).toFixed(1)+'</td>';
             th+='<td class="num">'+btrBox(i.sku)+'</td>';
-            th+='<td><select onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'noPo\',this.value)" style="padding:2px 4px;font-size:11px"><option value="">—</option><option value="是"'+(s.noPo==='是'?' selected':'')+'>是</option><option value="否"'+(s.noPo==='否'?' selected':'')+'>否</option><option value="其他'+(s.noPo==='其他'?' selected':'')+'>其他</option></select></td>';
+            th+='<td><select onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'noPo\',this.value)" style="padding:2px 4px;font-size:11px"><option value="">—</option><option value="是"'+(s.noPo==='是'?' selected':'')+'>是</option><option value="否"'+(s.noPo==='否'?' selected':'')+'>否</option><option value="其他"'+(s.noPo==='其他'?' selected':'')+'>其他</option></select></td>';
             th+='<td><input value="'+(s.note||'')+'" onchange="btrSet(\''+k.replace(/'/g,"\\'")+'\',\'note\',this.value)" placeholder="备注..." style="width:110px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"></td></tr>';
         });
         th+='</tbody></table></div>';
