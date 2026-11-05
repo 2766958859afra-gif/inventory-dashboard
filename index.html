@@ -961,11 +961,13 @@ function renderStock() {
 // Panel 3: 库销比分析
 // ══════════════════════════════════════════════
 function fbaRatio(i) {
-    var s = sn(i.sales_30d);
+    // 分母优先用 SC 销量（FBA渠道），无则回退总销量
+    var s = sn(i.fba_sales_30d) || sn(i.sales_30d);
     return s > 0 ? (sn(i.fba_avail) + sn(i.fba_inbound)) / s : 0;
 }
 function poRatio(i) {
-    var s = sn(i.sales_30d);
+    // 分母优先用 VC 销量（PO渠道），无则回退总销量
+    var s = sn(i.po_sales_30d) || sn(i.sales_30d);
     return s > 0 ? (sn(i.po_avail) + sn(i.po_inbound)) / s : 0;
 }
 function offshoreRatio(i) {
