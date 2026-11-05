@@ -1406,8 +1406,11 @@ function renderScVc(){
         }
         return true;
     });
-    // 双渠道优先显示（可对比的排前面）
+    // 排序：① 有超期库存优先（最该处理）② 双渠道 ③ 销量降序
     rows.sort(function(a,b){
+        var oa = sn(a.fba_age180) + sn(a.po_age90), ob = sn(b.fba_age180) + sn(b.po_age90);
+        if ((oa>0) !== (ob>0)) return (ob>0 ? 1 : -1);
+        if (oa>0 && ob>0 && oa !== ob) return ob - oa;
         var d = (hasF(b)&&hasP(b) ? 2:1) - (hasF(a)&&hasP(a) ? 2:1);
         if (d !== 0) return d;
         return sn(b.sales_30d) - sn(a.sales_30d);
@@ -1416,7 +1419,7 @@ function renderScVc(){
     function scRatio(i){ var s = sn(i.fba_sales_30d); return s > 0 ? sn(i.fba_avail)/s : 0; }
     function vcRatio(i){ var s = sn(i.po_sales_30d); return s > 0 ? sn(i.po_avail)/s : 0; }
     function osRatio(i){ var s = sn(i.fba_sales_30d) + sn(i.po_sales_30d); return s > 0 ? sn(i.overseas_avail)/s : 0; }
-    document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th>海外仓在途</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th><th>链路</th></tr>';
+    document.getElementById('scvcHead').innerHTML = '<tr><th>ASIN</th><th>运营</th><th>FBA在库</th><th>FBA在途</th><th>SC销量</th><th>PO在库</th><th>PO在途</th><th>VC销量</th><th>海外仓在库</th><th title="FBA仓181天以上超期库存">FBA超期</th><th title="库龄超90天PO库存">PO超期</th><th>海外仓在途</th><th>SC库销比</th><th>VC库销比</th><th>海外仓库销比</th><th>建议</th><th>链路</th></tr>';
     // 顶部对比卡：SC vs VC 平均库销比 + 建议转移数
     var avgSc = 0, avgVc = 0, toSc = 0, toVc = 0, bal = 0;
     rows.forEach(function(i){
@@ -1446,10 +1449,18 @@ function renderScVc(){
         else if (diff < -2) { suggest = '<span style="background:rgba(44,133,91,.12);color:#2c855b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">→ 转VC消化</span>'; sBadge = 'background:rgba(44,133,91,.06)'; }
         else if (!hasF(i) || !hasP(i)) { suggest = '<span style="color:var(--text-muted);font-size:11px">单渠道无对比</span>'; sBadge = ''; }
         else { suggest = '<span style="color:var(--text-muted);font-size:11px">均衡</span>'; sBadge = ''; }
+        // 有超期库存 → 追加提示（看渠道对比时同步发现）
+        var _od = sn(i.fba_age180) + sn(i.po_age90);
+        if (_od > 0) {
+            suggest += '<div style="font-size:10px;color:#c7484f;font-weight:700;margin-top:2px">⚠ 有超期 ' + Math.round(_od) + ' 件</div>';
+        }
         body += '<tr style="' + sBadge + '"><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td><td>' + (i.operator||'') + '</td>' +
             '<td class="num">' + fc(i.fba_avail) + '</td><td class="num">' + fc(i.fba_inbound) + '</td><td class="num">' + fc(i.fba_sales_30d) + '</td>' +
             '<td class="num">' + fc(i.po_avail) + '</td><td class="num">' + fc(i.po_inbound) + '</td><td class="num">' + fc(i.po_sales_30d) + '</td>' +
-            '<td class="num">' + fc(i.overseas_avail) + '</td><td class="num">' + fc(i.overseas_inbound) + '</td>' +
+            '<td class="num">' + fc(i.overseas_avail) + '</td>' +
+            '<td class="num"' + (sn(i.fba_age180)>0 ? ' style="color:#c7484f;font-weight:700"' : '') + '>' + (sn(i.fba_age180)>0 ? fc(i.fba_age180) : '-') + '</td>' +
+            '<td class="num"' + (sn(i.po_age90)>0 ? ' style="color:#b45309;font-weight:700"' : '') + '>' + (sn(i.po_age90)>0 ? fc(i.po_age90) : '-') + '</td>' +
+            '<td class="num">' + fc(i.overseas_inbound) + '</td>' +
             '<td class="num" style="color:#3559c7;font-weight:600">' + f2(sr) + '</td><td class="num" style="color:#2c855b;font-weight:600">' + f2(vr) + '</td><td class="num">' + f2(orr) + '</td><td>' + suggest + '</td><td>' + chanBadge(i) + '</td></tr>';
     });
     document.getElementById('scvcBody').innerHTML = body;
