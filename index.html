@@ -1296,11 +1296,12 @@ function renderRatio() {
     document.getElementById('activeFilters').textContent = activeFilters.length > 0 ? activeFilters.join(' | ') : '\u65E0';
     
     // Table
-    var cols = ['SKU','ASIN','\u54C1\u7C7B','\u8FD0\u8425','VC/SC','FBA\u53EF\u7528','FBA\u5728\u9014','PO\u5728\u5E93','PO\u5728\u9014','\u6D77\u5916\u4ED3','\u672C\u5730','SC\u9500\u91CF','VC\u9500\u91CF','30\u5929\u9500\u91CF','FBA\u5E93\u9500\u6BD4','PO\u5E93\u9500\u6BD4','\u53EF\u7528\u5E93\u9500\u6BD4','\u6210\u54C1\u5E93\u9500\u6BD4','\u79BB\u5CB8\u5E93\u9500\u6BD4','\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4','\u72B6\u6001','\u7B49\u7EA7'];
-    var sums = {fa:0, fi:0, pa:0, pi:0, oa:0, lo:0, sc:0, vc:0, sl:0};
+    var cols = ['SKU','ASIN','\u54C1\u7C7B','\u8FD0\u8425','VC/SC','FBA\u53EF\u552E','FBA\u63A5\u6536\u8F6C\u8FD0','FBA\u53EF\u7528','FBA\u5728\u9014','PO\u5728\u5E93','PO\u5728\u9014','\u6D77\u5916\u4ED3','\u672C\u5730','SC\u9500\u91CF','VC\u9500\u91CF','30\u5929\u9500\u91CF','FBA\u5E93\u9500\u6BD4','PO\u5E93\u9500\u6BD4','\u53EF\u7528\u5E93\u9500\u6BD4','\u6210\u54C1\u5E93\u9500\u6BD4','\u79BB\u5CB8\u5E93\u9500\u6BD4','\u5168\u94FE\u8DEF\u5E93\u9500\u6BD4','\u72B6\u6001','\u7B49\u7EA7'];
+    var sums = {fa:0, fi:0, pa:0, pi:0, oa:0, lo:0, sc:0, vc:0, sl:0, sk:0, tr:0};
     var ratioSums = {fr:0, pr:0, ar:0, fi:0, of:0, fu:0};
     var cnt = d.length || 1;
     d.forEach(function(i) {
+        sums.sk += sn(i.fba_sellable); sums.tr += sn(i.fba_transfer);
         sums.fa += sn(i.fba_avail); sums.fi += sn(i.fba_inbound);
         sums.pa += sn(i.po_avail); sums.pi += sn(i.po_inbound);
         sums.oa += sn(i.overseas_avail); sums.lo += sn(i.local_avail);
@@ -1313,6 +1314,7 @@ function renderRatio() {
     });
     
     var summaryRow = '<tr class="summary-row"><td>\u2211/x\u0304</td><td></td><td></td><td></td><td></td>' +
+        '<td class="num">' + fc(sums.sk) + '</td><td class="num" style="color:#c7484f;font-weight:600">' + fc(sums.tr) + '</td>' +
         '<td class="num">' + fc(sums.fa) + '</td><td class="num">' + fc(sums.fi) + '</td>' +
         '<td class="num">' + fc(sums.pa) + '</td><td class="num">' + fc(sums.pi) + '</td>' +
         '<td class="num">' + fc(sums.oa) + '</td><td class="num">' + fc(sums.lo) + '</td>' +
@@ -1342,6 +1344,8 @@ function renderRatio() {
         var fir = finishRatio(i), ofr = offshoreRatio(i);
         body += '<tr><td>' + i.sku + '</td><td><a href="https://www.amazon.com/dp/' + i.asin + '" target="_blank">' + i.asin + '</a></td>' +
             '<td>' + (i.category||'') + '</td><td>' + (i.operator||'') + '</td><td>' + (i.vc_sc||'SC') + '</td>' +
+            '<td class="num">' + fc(i.fba_sellable||0) + '</td>' +
+            '<td class="num"' + (sn(i.fba_transfer)>0 ? ' style="color:#c7484f;font-weight:600"' : '') + '>' + fc(i.fba_transfer||0) + '</td>' +
             '<td class="num">' + fc(i.fba_avail) + '</td><td class="num">' + fc(i.fba_inbound) + '</td>' +
             '<td class="num">' + fc(i.po_avail) + '</td><td class="num">' + fc(i.po_inbound) + '</td>' +
             '<td class="num">' + fc(i.overseas_avail) + '</td><td class="num">' + fc(i.local_avail) + '</td>' +
