@@ -1,1 +1,10 @@
 settings.json
+# 备份/临时文件
+*.bak_*
+*.bak
+data_backup_*.json
+index_backup_*.html
+feedback.json
+feedback_notified.txt
+.imported.json
+settings.json
